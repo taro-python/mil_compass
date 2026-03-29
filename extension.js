@@ -1,6 +1,6 @@
-/* --- Tactical OS Extension v1.4: Refined UI & Popup Fix --- */
+/* --- Tactical OS Extension v1.5: Vertical Right-Side UI --- */
 
-// 1. スタイルの注入（デザインをよりシャープに）
+// 1. スタイルの注入（配置を右側縦一列に変更）
 const extensionStyle = document.createElement('style');
 extensionStyle.innerHTML = `
     /* ボタンの共通デザイン */
@@ -8,33 +8,31 @@ extensionStyle.innerHTML = `
         position: absolute; z-index: 3000; display: none;
         background: rgba(0, 20, 0, 0.85); color: #00ff00;
         border: 1px solid #00ff00; font-family: 'Courier New', monospace;
-        font-weight: bold; font-size: 12px; cursor: pointer;
-        padding: 10px 15px; text-transform: uppercase;
-        letter-spacing: 1px; box-shadow: 0 0 10px rgba(0, 255, 0, 0.2);
+        font-weight: bold; font-size: 11px; cursor: pointer;
+        padding: 12px 8px; text-transform: uppercase;
+        letter-spacing: 1px; width: 100px; text-align: center;
+        box-shadow: 0 0 10px rgba(0, 255, 0, 0.2);
     }
     .t-btn:active { background: #00ff00; color: #000; }
     .mode-map .t-btn { display: block; }
 
-    /* ボタン配置 */
-    #plot-btn { bottom: 30px; right: 20px; border-width: 2px; }
-    #input-btn { bottom: 30px; right: 155px; }
-    #list-btn { bottom: 30px; left: 120px; }
+    /* 右側縦一列の配置設定 */
+    #plot-btn  { top: 70px;  right: 15px; border-width: 2px; } /* メイン機能 */
+    #input-btn { top: 130px; right: 15px; }                   /* 手動入力 */
+    #list-btn  { top: 190px; right: 15px; }                   /* 履歴表示 */
 
     /* パネルのデザイン */
     .ext-panel {
         position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-        width: 85%; max-width: 400px; max-height: 80vh;
+        width: 85%; max-width: 350px; max-height: 80vh;
         background: #050a05; border: 1px solid #00ff00;
         z-index: 5000; display: none; flex-direction: column; padding: 20px;
         box-shadow: 0 0 30px rgba(0, 255, 0, 0.3); color: #00ff00;
     }
     .ext-input { 
         background: #000; color: #00ff00; border: 1px solid #004400; 
-        width: 100%; padding: 12px; margin: 10px 0; font-family: monospace; outline: none;
+        width: 100%; padding: 12px; margin: 10px 0; font-family: monospace; outline: none; box-sizing: border-box;
     }
-    .ext-input:focus { border-color: #00ff00; }
-
-    /* マーク選択 */
     .mark-select { display: flex; gap: 5px; margin: 10px 0; }
     .mark-opt { border: 1px solid #004400; padding: 10px; flex: 1; text-align: center; cursor: pointer; }
     .mark-opt.active { border-color: #00ff00; background: rgba(0,255,0,0.1); }
@@ -46,7 +44,6 @@ extensionStyle.innerHTML = `
     }
     .leaflet-popup-tip { background: #00ff00 !important; }
     
-    /* マーカー用スタイル */
     .custom-marker-html {
         display: flex; align-items: center; justify-content: center;
         color: #ff0000; font-size: 22px; font-weight: bold;
@@ -57,17 +54,17 @@ document.head.appendChild(extensionStyle);
 
 // 2. UI要素の作成
 document.body.insertAdjacentHTML('beforeend', `
-    <div id="plot-btn" class="t-btn">MARK CENTER</div>
-    <div id="input-btn" class="t-btn">INPUT</div>
-    <div id="list-btn" class="t-btn">LIST</div>
+    <div id="plot-btn" class="t-btn">MARK<br>CENTER</div>
+    <div id="input-btn" class="t-btn">MANUAL<br>INPUT</div>
+    <div id="list-btn" class="t-btn">LOG<br>LIST</div>
 
     <div id="input-panel" class="ext-panel">
-        <div style="font-size:14px; margin-bottom:15px; border-bottom:1px solid #00ff00;">NEW TARGET DATA</div>
-        <label style="font-size:10px;">ID / NAME</label>
-        <input type="text" id="m-name" class="ext-input" placeholder="OBJECTIVE-01">
+        <div style="font-size:14px; margin-bottom:15px; border-bottom:1px solid #00ff00; padding-bottom:5px;">MANUAL PLOT</div>
+        <label style="font-size:10px;">NAME / ID</label>
+        <input type="text" id="m-name" class="ext-input" placeholder="OBJECTIVE-A">
         <label style="font-size:10px;">MGRS COORD</label>
         <input type="text" id="m-coord" class="ext-input" placeholder="54TUK12345678">
-        <label style="font-size:10px;">SYMBOLOGY</label>
+        <label style="font-size:10px;">MARK TYPE</label>
         <div class="mark-select">
             <div class="mark-opt active" onclick="selMark(this,'●')">●</div>
             <div class="mark-opt" onclick="selMark(this,'▲')">▲</div>
@@ -75,19 +72,19 @@ document.body.insertAdjacentHTML('beforeend', `
             <div class="mark-opt" onclick="selMark(this,'×')">×</div>
         </div>
         <div style="display:flex; gap:10px; margin-top:15px;">
-            <button class="t-btn" style="position:static; display:block; flex:1; background:#004400;" onclick="execManualPlot()">EXECUTE</button>
-            <button class="t-btn" style="position:static; display:block; flex:1; border-color:#444; color:#888;" onclick="closePanel('input-panel')">ABORT</button>
+            <button class="t-btn" style="position:static; display:block; flex:1; width:auto; background:#004400;" onclick="execManualPlot()">PLOT</button>
+            <button class="t-btn" style="position:static; display:block; flex:1; width:auto; border-color:#444; color:#888;" onclick="closePanel('input-panel')">ABORT</button>
         </div>
     </div>
 
     <div id="plot-list-panel" class="ext-panel">
-        <div style="font-size:14px; margin-bottom:15px; border-bottom:1px solid #00ff00;">TACTICAL LOG</div>
-        <div id="plot-list-content" style="overflow-y:auto; flex-grow:1;"></div>
+        <div style="font-size:14px; margin-bottom:15px; border-bottom:1px solid #00ff00; padding-bottom:5px;">TACTICAL LOG</div>
+        <div id="plot-list-content" style="overflow-y:auto; flex-grow:1; max-height:50vh;"></div>
         <button class="t-btn" style="position:static; display:block; width:100%; margin-top:15px;" onclick="closePanel('plot-list-panel')">RETURN</button>
     </div>
 `);
 
-// 3. ロジック部
+// 3. ロジック部（マーカー修正込み）
 let savedPlots = JSON.parse(localStorage.getItem('tactical_plots') || '[]');
 let markersOnMap = [];
 let selectedMark = '●';
@@ -102,13 +99,12 @@ window.closePanel = (id) => document.getElementById(id).style.display = 'none';
 
 function addMarkerToMap(p, index) {
     if (typeof map === 'undefined') return;
-    // アイコンのアンカー（中心点）を正確に指定してズレを防止
     const icon = L.divIcon({
         className: 'custom-marker-html',
         html: `<div>${p.mark || '●'}</div>`,
         iconSize: [30, 30],
-        iconAnchor: [15, 15], // アイコンの中心を座標に合わせる
-        popupAnchor: [0, -15] // 吹き出しをアイコンの真上に出す
+        iconAnchor: [15, 15],
+        popupAnchor: [0, -15]
     });
     const marker = L.marker([p.lat, p.lng], {icon: icon}).addTo(map);
     marker.bindPopup(`<b>${p.name || 'PT'}</b><br>MGRS: ${p.mgrs}<br>RNG: ${p.dist || '---'}`);
@@ -141,7 +137,7 @@ window.execManualPlot = () => {
         document.getElementById('m-name').value = '';
         document.getElementById('m-coord').value = '';
         map.setView([decoded[1], decoded[0]], 17);
-    } catch(e) { alert("ERROR: INVALID MGRS"); }
+    } catch(e) { alert("INVALID MGRS"); }
 };
 
 function saveAndPlot(lat, lng, mgrs, name, mark) {
