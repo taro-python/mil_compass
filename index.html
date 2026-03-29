@@ -3,170 +3,184 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>MIL Compass & Map</title>
+    <title>MIL Tactical Map v4.0</title>
     
     <script src="https://cdn.jsdelivr.net/npm/mgrs@1.0.0/dist/mgrs.min.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <style>
-        body { 
-            background: #1a1a1a; color: #00ff00; font-family: 'Courier New', monospace; 
-            margin: 0; overflow: hidden; height: 100vh; width: 100vw;
-        }
-
-        /* モード切り替え用の表示制御 */
-        .mode-compass #map-container { display: none; }
-        .mode-compass #compass-container { display: flex; }
-        .mode-map #map-container { display: block; }
+        body { background: #1a1a1a; color: #00ff00; font-family: monospace; margin: 0; overflow: hidden; height: 100vh; }
+        
+        /* 表示切替 */
+        .mode-compass #map-ui { display: none; }
         .mode-map #compass-container { display: none; }
+        .mode-map #map-ui { display: block; width: 100%; height: 100%; }
 
-        /* コンパス画面 */
-        #compass-container {
-            flex-direction: column; align-items: center; justify-content: center; height: 100%;
+        /* 地図上の十字照準 */
+        #crosshair {
+            position: absolute; top: 50%; left: 50%;
+            width: 40px; height: 40px;
+            transform: translate(-50%, -50%);
+            pointer-events: none; z-index: 1001;
+            display: none;
         }
-
-        /* マップ画面 */
-        #map-container { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1; }
-
-        /* UI要素（共通） */
-        #menu-btn {
-            position: absolute; top: 15px; left: 15px; font-size: 2rem; 
-            color: #00ff00; cursor: pointer; z-index: 1000;
-            background: rgba(0,0,0,0.5); padding: 5px 10px; border-radius: 5px;
+        .mode-map #crosshair { display: block; }
+        #crosshair::before, #crosshair::after {
+            content: ''; position: absolute; background: #ff0000;
         }
+        #crosshair::before { top: 19px; left: 0; width: 40px; height: 2px; } /* 横線 */
+        #crosshair::after { top: 0; left: 19px; width: 2px; height: 40px; } /* 縦線 */
 
+        /* 座標表示パネル (右上) */
         #info-panel { 
-            position: absolute; top: 10px; right: 10px; font-size: 0.85rem; text-align: right; 
-            z-index: 1000; background: rgba(0,0,0,0.7); padding: 8px; border-radius: 5px; border: 1px solid #333;
+            position: absolute; top: 10px; right: 10px; z-index: 2000;
+            background: rgba(0,0,0,0.8); padding: 10px; border-radius: 5px; border: 1px solid #00ff00;
+            min-width: 160px; pointer-events: none;
         }
+        .data-box { margin-bottom: 5px; border-bottom: 1px solid #333; padding-bottom: 3px; }
+        .label-tag { font-size: 0.65rem; color: #888; display: block; }
+        .val { font-size: 1rem; font-weight: bold; }
+        #center-mgrs { color: #ff0000; } /* 中心座標は赤 */
 
-        /* サイドメニュー */
-        #side-menu {
-            position: fixed; top: 0; left: -260px; width: 250px; height: 100%;
-            background: #111; border-right: 2px solid #00ff00; transition: 0.3s; z-index: 2000;
-        }
+        /* メニュー */
+        #menu-btn { position: absolute; top: 15px; left: 15px; font-size: 2rem; z-index: 2000; cursor: pointer; background: rgba(0,0,0,0.5); padding: 5px 10px; border-radius: 5px; }
+        #side-menu { position: fixed; top: 0; left: -260px; width: 250px; height: 100%; background: #111; border-right: 2px solid #00ff00; transition: 0.3s; z-index: 3000; }
         #side-menu.open { left: 0; }
-        .menu-header { padding: 20px; border-bottom: 1px solid #00ff00; font-weight: bold; background: #222; }
         .menu-item { padding: 15px 20px; border-bottom: 1px solid #222; cursor: pointer; color: #00ff00; }
         .menu-item:hover { background: #00ff00; color: #000; }
 
-        /* コンパスデザイン（既存踏襲） */
-        .compass-ui { position: relative; width: 300px; height: 300px; }
-        #compass-face { width: 300px; height: 300px; border: 4px solid #00ff00; border-radius: 50%; position: absolute; }
+        /* コンパス用スタイル (既存) */
+        #compass-container { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; }
+        #compass-face { width: 300px; height: 300px; border: 4px solid #00ff00; border-radius: 50%; position: relative; }
         #needle { width: 4px; height: 160px; background: #ff0000; position: absolute; left: 50%; top: -10px; transform: translateX(-50%); z-index: 10; }
-        .label { position: absolute; color: #00ff00; font-weight: bold; font-size: 1.5rem; }
-        #label-n { top: -45px; left: 50%; transform: translateX(-50%); }
-        #display { font-size: 3.2rem; margin-top: 60px; font-weight: bold; }
+        #mil-display { font-size: 3.5rem; margin-top: 50px; font-weight: bold; }
 
-        #start-btn {
-            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            padding: 20px 40px; font-size: 1.5rem; background: #00ff00; color: #000;
-            border: none; border-radius: 10px; font-weight: bold; z-index: 3000; cursor: pointer;
+        /* 地図コンテナ */
+        #map { width: 100%; height: 100%; background: #000; }
+
+        #start-screen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #1a1a1a;
+            display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 9999;
         }
     </style>
 </head>
 <body class="mode-compass">
 
+    <div id="start-screen" onclick="initSystem()">
+        <h1 style="color:#00ff00;">MIL SYSTEM v4.0</h1>
+        <p>TAP TO START</p>
+    </div>
+
     <div id="menu-btn" onclick="toggleMenu()">&#9776;</div>
 
     <div id="side-menu">
-        <div class="menu-header">MIL SYSTEM v3.0</div>
-        <div class="menu-item" onclick="switchMode('compass')">＞ COMPASS MODE</div>
-        <div class="menu-item" onclick="switchMode('map')">＞ MAP MODE</div>
+        <div style="padding:20px; background:#222; border-bottom:1px solid #00ff00;">MENU</div>
+        <div class="menu-item" onclick="switchMode('compass')">COMPASS MODE</div>
+        <div class="menu-item" onclick="switchMode('map')">MAP MODE</div>
+        <div class="menu-item" onclick="changeLayer('std')">Map: Standard</div>
+        <div class="menu-item" onclick="changeLayer('ortho')">Map: Satellite (GSI)</div>
+        <div class="menu-item" onclick="changeLayer('topo')">Map: Topographic</div>
         <div class="menu-item" onclick="toggleMenu()">CLOSE</div>
     </div>
 
     <div id="info-panel">
-        <div><span id="mgrs-text" style="font-size:1.1rem;">GPS OFF</span></div>
-        <div style="color:#888; font-size:0.7rem;">DEC: <span id="decl-text">0.0°</span></div>
+        <div class="data-box"><span class="label-tag">SELF (自己位置)</span><span id="self-mgrs" class="val">WAITING...</span></div>
+        <div class="data-box"><span class="label-tag">CENTER (中心/照準)</span><span id="center-mgrs" class="val">---</span></div>
+        <div class="data-box"><span class="label-tag">PIN (指定地点)</span><span id="pin-mgrs" class="val">---</span></div>
+        <div style="font-size:0.7rem; color:#888;">DEC: <span id="decl-text">0.0°</span></div>
+    </div>
+
+    <div id="map-ui">
+        <div id="crosshair"></div>
+        <div id="map"></div>
     </div>
 
     <div id="compass-container">
-        <div class="compass-ui">
+        <div style="position:relative; width:300px; height:300px;">
             <div id="needle"></div>
-            <div id="compass-face">
-                <div class="label" id="label-n">N</div>
-            </div>
+            <div id="compass-face"></div>
         </div>
-        <div id="display">0000 MIL</div>
+        <div id="mil-display">0000 MIL</div>
     </div>
 
-    <div id="map-container"></div>
-
-    <button id="start-btn" onclick="initSystem()">START SYSTEM</button>
-
     <script>
-        let map, marker, currentDeclination = 0;
-        const face = document.getElementById('compass-face');
-        const display = document.getElementById('display');
-        const mgrsText = document.getElementById('mgrs-text');
-        const declText = document.getElementById('decl-text');
+        let map, selfMarker, pinMarker, currentDeclination = 0;
+        let layers = {};
 
-        // コンパス目盛り描画
+        // コンパス目盛り生成
+        const face = document.getElementById('compass-face');
         for (let i = 0; i < 32; i++) {
-            const div = document.createElement('div');
-            div.style.position = 'absolute';
-            div.style.width = '100%';
-            div.style.height = '100%';
-            div.style.transform = `rotate(${i * 11.25}deg)`;
-            const tick = document.createElement('div');
-            tick.style.width = (i % 4 === 0) ? '4px' : '2px';
-            tick.style.height = (i % 4 === 0) ? '30px' : '15px';
-            tick.style.background = (i % 4 === 0) ? '#fff' : '#00ff00';
-            tick.style.margin = '0 auto';
-            div.appendChild(tick);
-            face.appendChild(div);
+            const d = document.createElement('div');
+            d.style.cssText = `position:absolute;width:100%;height:100%;transform:rotate(${i*11.25}deg);`;
+            const t = document.createElement('div');
+            t.style.cssText = `width:${i%4?2:4}px;height:${i%4?15:30}px;background:${i%4?'#00ff00':'#fff'};margin:0 auto;`;
+            d.appendChild(t);
+            face.appendChild(d);
         }
 
         function toggleMenu() { document.getElementById('side-menu').classList.toggle('open'); }
+        
+        function switchMode(m) { 
+            document.body.className = 'mode-' + m; 
+            if(m==='map') setTimeout(() => map.invalidateSize(), 200);
+            toggleMenu(); 
+        }
 
-        function switchMode(mode) {
-            document.body.className = (mode === 'map') ? 'mode-map' : 'mode-compass';
-            if (mode === 'map' && map) setTimeout(() => map.invalidateSize(), 200);
+        function changeLayer(type) {
+            Object.values(layers).forEach(l => map.removeLayer(l));
+            layers[type].addTo(map);
             toggleMenu();
         }
 
+        function getMGRS(lat, lng) {
+            try { return mgrs.forward([lng, lat]); } catch(e) { return "ERROR"; }
+        }
+
         async function initSystem() {
-            document.getElementById('start-btn').style.display = 'none';
-            
-            // センサー許可 (iOS)
-            if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-                await DeviceOrientationEvent.requestPermission();
-            }
+            document.getElementById('start-screen').style.display = 'none';
+            if (typeof DeviceOrientationEvent.requestPermission === 'function') await DeviceOrientationEvent.requestPermission();
 
-            // マップ初期化
-            map = L.map('map-container').setView([35.68, 139.76], 13);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '© OpenStreetMap'
-            }).addTo(map);
-            marker = L.marker([35.68, 139.76]).addTo(map);
+            // 地図レイヤー定義 (国土地理院)
+            layers.std = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', { attribution: "地理院標準" });
+            layers.ortho = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg', { attribution: "地理院写真" });
+            layers.topo = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png', { attribution: "地理院淡色" });
 
-            // 位置情報監視
+            map = L.map('map', { zoomControl: false }).setView([35.68, 139.76], 13);
+            layers.std.addTo(map);
+
+            selfMarker = L.circleMarker([0,0], { color: '#00ff00', radius: 8 }).addTo(map);
+            pinMarker = L.marker([0,0]).addTo(map);
+
+            // 地図中心の座標表示
+            map.on('move', () => {
+                const center = map.getCenter();
+                document.getElementById('center-mgrs').innerText = getMGRS(center.lat, center.lng);
+            });
+
+            // ピンを刺す機能
+            map.on('click', (e) => {
+                pinMarker.setLatLng(e.latlng);
+                document.getElementById('pin-mgrs').innerText = getMGRS(e.latlng.lat, e.latlng.lng);
+            });
+
+            // GPS
             navigator.geolocation.watchPosition((pos) => {
-                const lat = pos.coords.latitude;
-                const lon = pos.coords.longitude;
-                
-                // MGRS更新
-                mgrsText.innerText = mgrs.forward([lon, lat]);
-                
-                // 偏角計算 (西偏)
+                const lat = pos.coords.latitude, lon = pos.coords.longitude;
+                const m = getMGRS(lat, lon);
+                document.getElementById('self-mgrs').innerText = m;
                 currentDeclination = - ( (lat - 37) * 0.2 + (lon - 135) * 0.1 + 7.5 );
-                declText.innerText = `${Math.abs(currentDeclination).toFixed(1)}° W`;
-
-                // マップ更新
-                const newPos = [lat, lon];
-                map.panTo(newPos);
-                marker.setLatLng(newPos);
+                document.getElementById('decl-text').innerText = Math.abs(currentDeclination).toFixed(1) + '° W';
+                selfMarker.setLatLng([lat, lon]);
             }, null, { enableHighAccuracy: true });
 
-            // 方位監視
-            window.addEventListener('deviceorientation', (event) => {
-                let heading = event.webkitCompassHeading || (360 - event.alpha);
-                if (heading) {
-                    let trueHeading = (heading + currentDeclination + 360) % 360;
-                    face.style.transform = `rotate(-${trueHeading}deg)`;
-                    display.innerText = Math.round(trueHeading * (6400 / 360)).toString().padStart(4, '0') + " MIL";
+            // 方位
+            window.addEventListener('deviceorientation', (e) => {
+                let h = e.webkitCompassHeading || (360 - e.alpha);
+                if (h) {
+                    let trueH = (h + currentDeclination + 360) % 360;
+                    face.style.transform = `rotate(-${trueH}deg)`;
+                    document.getElementById('mil-display').innerText = Math.round(trueH * (6400 / 360)).toString().padStart(4, '0') + " MIL";
                 }
             });
         }
