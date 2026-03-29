@@ -1,4 +1,4 @@
-/* --- Tactical OS Extension v1.6: Lower Right-Side UI --- */
+/* --- Tactical OS Extension v1.7: Lower Right-Side UI (Position Adjusted) --- */
 
 const extensionStyle = document.createElement('style');
 extensionStyle.innerHTML = `
@@ -14,11 +14,11 @@ extensionStyle.innerHTML = `
     .t-btn:active { background: #00ff00; color: #000; }
     .mode-map .t-btn { display: block; }
 
-    /* 右下に縦に並べる設定 */
-    /* 下から順に、120px, 180px, 240pxの位置に配置（Leafletロゴ等を避けるため少し上から） */
-    #list-btn  { bottom: 120px; right: 15px; }                   
-    #input-btn { bottom: 180px; right: 15px; }                   
-    #plot-btn  { bottom: 240px; right: 15px; border-width: 2px; } 
+    /* --- 右下ボタンの配置調整 --- */
+    /* 全体的に下にスライドさせました（間隔55px） */
+    #list-btn  { bottom: 65px;  right: 15px; }                   
+    #input-btn { bottom: 120px; right: 15px; }                   
+    #plot-btn  { bottom: 175px; right: 15px; border-width: 2px; } 
 
     .ext-panel {
         position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
