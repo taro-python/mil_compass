@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Tactical OS v5.4</title>
+    <title>Tactical OS v5.5.1</title>
     
     <script src="https://cdn.jsdelivr.net/npm/mgrs@1.0.0/dist/mgrs.min.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -39,7 +39,6 @@
         /* コンパス画面 */
         #compass-full { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; }
         #face-full { width: 280px; height: 280px; border: 4px solid #00ff00; border-radius: 50%; position: relative; }
-        /* 針を真上に固定 */
         #needle-fixed { width: 4px; height: 150px; background: #ff0000; position: absolute; left: 50%; top: -10px; transform: translateX(-50%); z-index: 10; }
 
         .direction-marker {
@@ -50,14 +49,27 @@
         #menu-btn { position: absolute; top: 15px; left: 15px; font-size: 2rem; z-index: 3000; cursor: pointer; color: #00ff00; }
         #side-menu { position: fixed; top: 0; left: -260px; width: 250px; height: 100%; background: #111; z-index: 4000; transition: 0.3s; border-right: 1px solid #00ff00; }
         #side-menu.open { left: 0; }
-        #map { width: 100%; height: 100%; position: absolute; background: #111; }
+        #map { width: 100%; height: 100%; position: absolute; background: #111; z-index: 1; }
         #start-screen { position: fixed; inset: 0; background: #000; z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+
+        /* プロットボタン - z-indexを大きくし、色を濃くしました */
+        #plot-btn {
+            position: absolute; bottom: 40px; right: 20px; z-index: 3000;
+            background: #004400; color: #00ff00; border: 2px solid #00ff00;
+            padding: 12px 18px; font-family: monospace; font-weight: bold; 
+            border-radius: 5px; cursor: pointer;
+            box-shadow: 0 0 10px rgba(0, 255, 0, 0.5);
+        }
+        #plot-btn:active { background: #00ff00; color: #000; }
+
+        .leaflet-popup-content-wrapper { background: #000; color: #00ff00; border: 1px solid #00ff00; font-family: monospace; }
+        .leaflet-popup-tip { background: #00ff00; }
     </style>
 </head>
 <body class="mode-compass">
 
     <div id="start-screen" onclick="initSystem()">
-        <h2 style="color:#00ff00;">TACTICAL OS v5.4</h2>
+        <h2 style="color:#00ff00;">TACTICAL OS v5.5.1</h2>
         <p style="color:#00ff00;">TAP TO START</p>
     </div>
 
@@ -90,6 +102,7 @@
     <div id="map-ui" style="width:100%; height:100%; position:relative;">
         <div id="crosshair"></div>
         <div id="map"></div>
+        <div id="plot-btn" onclick="plotCenter()">MARK CENTER</div>
         <div id="compass-mini">
             <div id="mini-face-container" style="width:100%; height:100%; position:relative;">
                 <div id="mini-needle" style="width:2px; height:45px; background:#ff0000; position:absolute; left:50%; top:0; transform:translateX(-50%); z-index:10;"></div>
@@ -122,44 +135,44 @@
             toggleMenu(); 
         }
 
-        // 方位角更新関数
+        function plotCenter() {
+            if(!map) return;
+            const center = map.getCenter();
+            const mCode = mgrs.forward([center.lng, center.lat]);
+            let distStr = "---";
+            if(selfPos) {
+                const dist = L.latLng(selfPos).distanceTo(center);
+                distStr = `${Math.round(dist)} m`;
+            }
+            const marker = L.marker(center).addTo(map);
+            marker.bindPopup(`<b>PLOT DATA</b><br>MGRS: ${mCode}<br>RANGE: ${distStr}`).openPopup();
+        }
+
         function updateHeading(h) {
             if (h === null || h === undefined) return;
             const trueH = (h + currentDeclination + 360) % 360;
             const milVal = Math.round(trueH * (6400 / 360)).toString().padStart(4, '0');
-            
-            // 盤面を回転（マイナス回転）
             faceFull.style.transform = `rotate(-${trueH}deg)`;
             faceMini.style.transform = `rotate(-${trueH}deg)`;
-            
             document.getElementById('mil-display-f').innerText = milVal + " MIL";
             document.getElementById('mini-val').innerText = milVal;
-            
             const arrow = document.getElementById('self-arrow');
             if(arrow) arrow.style.transform = `rotate(${trueH}deg)`;
         }
 
         async function initSystem() {
             document.getElementById('start-screen').style.display = 'none';
-            
-            // iPhone/iOS センサー許可
             if (window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission === 'function') {
                 const response = await DeviceOrientationEvent.requestPermission();
                 if (response === 'granted') {
                     window.addEventListener('deviceorientation', (e) => {
-                        const h = e.webkitCompassHeading || (e.absolute ? 360 - e.alpha : null);
-                        updateHeading(h);
+                        updateHeading(e.webkitCompassHeading || (e.absolute ? 360 - e.alpha : null));
                     }, true);
                 }
             } else {
-                // Android等
                 window.addEventListener('deviceorientationabsolute', (e) => updateHeading(360 - e.alpha), true);
-                window.addEventListener('deviceorientation', (e) => {
-                    if (e.webkitCompassHeading) updateHeading(e.webkitCompassHeading);
-                }, true);
             }
 
-            // マップ初期設定
             map = L.map('map', { zoomControl: false });
             L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg', { maxZoom: 18 }).addTo(map);
 
@@ -176,16 +189,3 @@
             });
 
             navigator.geolocation.watchPosition((pos) => {
-                const lat = pos.coords.latitude, lon = pos.coords.longitude;
-                selfPos = [lat, lon];
-                const mCode = mgrs.forward([lon, lat]);
-                document.getElementById('self-mgrs-c').innerText = mCode;
-                document.getElementById('self-mgrs-m').innerText = mCode;
-                if (!window.initialSet) { map.setView(selfPos, 17); window.initialSet = true; }
-                selfMarker.setLatLng(selfPos);
-                currentDeclination = - ( (lat - 37) * 0.2 + (lon - 135) * 0.1 + 7.5 );
-            }, null, { enableHighAccuracy: true });
-        }
-    </script>
-</body>
-</html>
