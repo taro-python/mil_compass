@@ -1,131 +1,164 @@
-/* --- Tactical OS Extension v1.2: No-Reload Delete Feature --- */
+/* --- Tactical OS Extension v1.3: Manual Input & Custom Markers --- */
 
 // 1. スタイルの注入
 const extensionStyle = document.createElement('style');
 extensionStyle.innerHTML = `
-    #plot-btn, #list-btn {
+    #plot-btn, #list-btn, #input-btn {
         position: absolute; z-index: 3000; background: rgba(0, 40, 0, 0.9); 
         color: #00ff00; border: 2px solid #00ff00; font-family: monospace; 
         font-weight: bold; border-radius: 5px; cursor: pointer; display: none;
     }
-    .mode-map #plot-btn, .mode-map #list-btn { display: block; }
+    .mode-map #plot-btn, .mode-map #list-btn, .mode-map #input-btn { display: block; }
     #plot-btn { bottom: 30px; right: 20px; padding: 12px 16px; }
+    #input-btn { bottom: 30px; right: 160px; padding: 12px 16px; }
     #list-btn { bottom: 30px; left: 120px; padding: 12px 16px; }
 
-    #plot-list-panel {
+    /* 入力・リストパネル共通 */
+    .ext-panel {
         position: fixed; top: 10%; left: 5%; width: 90%; height: 80%;
-        background: rgba(0, 10, 0, 0.95); border: 2px solid #00ff00;
-        z-index: 5000; display: none; flex-direction: column; padding: 15px; box-sizing: border-box;
+        background: rgba(0, 15, 0, 0.98); border: 2px solid #00ff00;
+        z-index: 5000; display: none; flex-direction: column; padding: 15px; box-sizing: border-box; color: #00ff00;
     }
-    #plot-list-content { overflow-y: auto; flex-grow: 1; margin-bottom: 15px; }
+    .ext-input { background: #000; color: #00ff00; border: 1px solid #00ff00; width: 100%; padding: 10px; margin: 10px 0; font-family: monospace; }
+    .mark-select { display: flex; gap: 10px; margin: 10px 0; }
+    .mark-opt { border: 1px solid #00ff00; padding: 10px; flex: 1; text-align: center; cursor: pointer; }
+    .mark-opt.active { background: #00ff00; color: #000; }
+    
+    #plot-list-content { overflow-y: auto; flex-grow: 1; }
     .plot-item { border-bottom: 1px dashed #004400; padding: 10px 0; display: flex; justify-content: space-between; align-items: center; }
-    .plot-info { font-size: 0.8rem; color: #00ff00; }
-    .del-btn { background: #440000; color: #ff0000; border: 1px solid #ff0000; padding: 5px 10px; cursor: pointer; }
-    .close-list { background: #00ff00; color: #000; border: none; padding: 10px; font-weight: bold; cursor: pointer; }
-    .leaflet-popup-content-wrapper { background: #000; color: #00ff00; border: 1px solid #00ff00; font-family: monospace; }
+    .del-btn { background: #440000; color: #ff0000; border: 1px solid #ff0000; padding: 5px 10px; }
+    .btn-row { display: flex; gap: 10px; margin-top: 10px; }
+    .primary-btn { background: #00ff00; color: #000; border: none; padding: 12px; font-weight: bold; flex: 1; }
 `;
 document.head.appendChild(extensionStyle);
 
 // 2. UI要素の作成
-const plotBtn = document.createElement('div');
-plotBtn.id = 'plot-btn'; plotBtn.innerText = 'MARK CENTER';
-document.body.appendChild(plotBtn);
+document.body.insertAdjacentHTML('beforeend', `
+    <div id="plot-btn">MARK CENTER</div>
+    <div id="input-btn">INPUT</div>
+    <div id="list-btn">LIST</div>
 
-const listBtn = document.createElement('div');
-listBtn.id = 'list-btn'; listBtn.innerText = 'LIST';
-document.body.appendChild(listBtn);
+    <div id="input-panel" class="ext-panel">
+        <h3 style="border-bottom:1px solid #00ff00">MANUAL PLOT</h3>
+        <label>NAME:</label>
+        <input type="text" id="m-name" class="ext-input" placeholder="e.g. OBJECTIVE A">
+        <label>MGRS (8 or 10 digits):</label>
+        <input type="text" id="m-coord" class="ext-input" placeholder="e.g. 54TUK12345678">
+        <label>MARK TYPE:</label>
+        <div class="mark-select">
+            <div class="mark-opt active" onclick="selMark(this,'●')">●</div>
+            <div class="mark-opt" onclick="selMark(this,'▲')">▲</div>
+            <div class="mark-opt" onclick="selMark(this,'■')">■</div>
+            <div class="mark-opt" onclick="selMark(this,'×')">×</div>
+        </div>
+        <div class="btn-row">
+            <button class="primary-btn" onclick="execManualPlot()">PLOT ON MAP</button>
+            <button class="primary-btn" style="background:#444;color:#ccc" onclick="closePanel('input-panel')">CANCEL</button>
+        </div>
+    </div>
 
-const listPanel = document.createElement('div');
-listPanel.id = 'plot-list-panel';
-listPanel.innerHTML = `
-    <h3 style="margin-top:0; border-bottom:1px solid #00ff00; color:#00ff00;">PLOT HISTORY</h3>
-    <div id="plot-list-content"></div>
-    <button class="close-list" onclick="document.getElementById('plot-list-panel').style.display='none'">CLOSE</button>
-`;
-document.body.appendChild(listPanel);
+    <div id="plot-list-panel" class="ext-panel">
+        <h3 style="border-bottom:1px solid #00ff00">PLOT HISTORY</h3>
+        <div id="plot-list-content"></div>
+        <button class="primary-btn" style="margin-top:10px" onclick="closePanel('plot-list-panel')">CLOSE</button>
+    </div>
+`);
 
-// 3. データ管理ロジック
+// 3. ロジック
 let savedPlots = JSON.parse(localStorage.getItem('tactical_plots') || '[]');
-let markersOnMap = []; // 地図上のマーカーを管理する配列
+let markersOnMap = [];
+let selectedMark = '●';
 
-// マーカーを地図に追加する共通関数
-function addMarkerToMap(p, index) {
-    if (typeof map === 'undefined') return;
-    const marker = L.marker([p.lat, p.lng]).addTo(map);
-    marker.bindPopup(`<b>#${index + 1}</b><br>MGRS: ${p.mgrs}<br>RANGE: ${p.dist || '---'}`);
-    markersOnMap.push(marker); // 配列に保存しておく
-}
-
-// 保存されているプロットを復元
-function restorePlots() {
-    markersOnMap.forEach(m => map.removeLayer(m)); // 一旦全部消す
-    markersOnMap = [];
-    savedPlots.forEach((p, index) => {
-        addMarkerToMap(p, index);
-    });
-}
-
-// プロット実行
-plotBtn.onclick = function() {
-    if (typeof map === 'undefined' || !map) return;
-    const center = map.getCenter();
-    const mCode = mgrs.forward([center.lng, center.lat]);
-    let dStr = "---";
-    if (typeof selfPos !== 'undefined' && selfPos) {
-        dStr = `${Math.round(L.latLng(selfPos).distanceTo(center))} m`;
-    }
-
-    const newPlot = { lat: center.lat, lng: center.lng, mgrs: mCode, dist: dStr };
-    savedPlots.push(newPlot);
-    localStorage.setItem('tactical_plots', JSON.stringify(savedPlots));
-    
-    addMarkerToMap(newPlot, savedPlots.length - 1);
+window.selMark = (el, m) => {
+    document.querySelectorAll('.mark-opt').forEach(opt => opt.classList.remove('active'));
+    el.classList.add('active');
+    selectedMark = m;
 };
 
-// リスト表示・更新
-function updateListUI() {
+window.closePanel = (id) => document.getElementById(id).style.display = 'none';
+
+function addMarkerToMap(p, index) {
+    if (typeof map === 'undefined') return;
+    const icon = L.divIcon({
+        className: 'custom-mark',
+        html: `<div style="color:#ff0000; font-size:20px; font-weight:bold; text-shadow: 0 0 3px #000; transform:translate(-50%,-50%)">${p.mark || '●'}</div>`,
+        iconSize: [20, 20]
+    });
+    const marker = L.marker([p.lat, p.lng], {icon: icon}).addTo(map);
+    marker.bindPopup(`<b>${p.name || 'POINT'}</b><br>MGRS: ${p.mgrs}<br>RANGE: ${p.dist || '---'}`);
+    markersOnMap.push(marker);
+}
+
+function restorePlots() {
+    markersOnMap.forEach(m => map.removeLayer(m));
+    markersOnMap = [];
+    savedPlots.forEach((p, index) => addMarkerToMap(p, index));
+}
+
+// 中心プロット
+document.getElementById('plot-btn').onclick = () => {
+    const name = prompt("NAME THIS POINT:", "POINT " + (savedPlots.length + 1));
+    if (name === null) return;
+    const center = map.getCenter();
+    const mCode = mgrs.forward([center.lng, center.lat]);
+    saveAndPlot(center.lat, center.lng, mCode, name, '●');
+};
+
+// 手動入力パネル表示
+document.getElementById('input-btn').onclick = () => document.getElementById('input-panel').style.display = 'flex';
+
+// 手動入力実行
+window.execManualPlot = () => {
+    const name = document.getElementById('m-name').value || "MANUAL PT";
+    const coord = document.getElementById('m-coord').value.trim();
+    try {
+        const decoded = mgrs.toPoint(coord); // [lng, lat]
+        saveAndPlot(decoded[1], decoded[0], coord, name, selectedMark);
+        closePanel('input-panel');
+        // 入力欄をクリア
+        document.getElementById('m-name').value = '';
+        document.getElementById('m-coord').value = '';
+        // 描画地点へジャンプ
+        map.setView([decoded[1], decoded[0]], 17);
+    } catch(e) {
+        alert("INVALID MGRS FORMAT\nUse: 54TUK12345678");
+    }
+};
+
+function saveAndPlot(lat, lng, mgrs, name, mark) {
+    let dStr = "---";
+    if (typeof selfPos !== 'undefined' && selfPos) {
+        dStr = `${Math.round(L.latLng(selfPos).distanceTo([lat, lng]))} m`;
+    }
+    const newPlot = { lat, lng, mgrs, name, mark, dist: dStr };
+    savedPlots.push(newPlot);
+    localStorage.setItem('tactical_plots', JSON.stringify(savedPlots));
+    addMarkerToMap(newPlot, savedPlots.length - 1);
+}
+
+// リスト表示
+document.getElementById('list-btn').onclick = () => {
     const container = document.getElementById('plot-list-content');
     container.innerHTML = '';
     savedPlots.forEach((p, i) => {
-        const item = document.createElement('div');
-        item.className = 'plot-item';
-        item.innerHTML = `
-            <div class="plot-info">
-                <b>#${i+1}</b> [${p.dist}]<br>${p.mgrs}
-            </div>
-            <button class="del-btn" onclick="deletePlot(${i})">DEL</button>
-        `;
-        container.appendChild(item);
+        container.innerHTML += `
+            <div class="plot-item">
+                <div style="font-size:0.8rem">
+                    <b>${p.mark} ${p.name}</b> [${p.dist}]<br>${p.mgrs}
+                </div>
+                <button class="del-btn" onclick="deletePlot(${i})">DEL</button>
+            </div>`;
     });
-}
-
-listBtn.onclick = function() {
-    updateListUI();
-    listPanel.style.display = 'flex';
+    document.getElementById('plot-list-panel').style.display = 'flex';
 };
 
-// 削除機能（リロードなし）
-window.deletePlot = function(index) {
-    // 1. 地図から該当のマーカーを消去
-    if (markersOnMap[index]) {
-        map.removeLayer(markersOnMap[index]);
-    }
-    
-    // 2. データから削除
+window.deletePlot = (index) => {
     savedPlots.splice(index, 1);
     localStorage.setItem('tactical_plots', JSON.stringify(savedPlots));
-    
-    // 3. マーカー管理配列を再同期
     restorePlots();
-    
-    // 4. リストUIを更新
-    updateListUI();
+    document.getElementById('list-btn').click(); // リスト再描画
 };
 
-// 初回起動時の読み込み待ち
 const checkMapInterval = setInterval(() => {
-    if (typeof map !== 'undefined' && map) {
-        restorePlots();
-        clearInterval(checkMapInterval);
-    }
+    if (typeof map !== 'undefined' && map) { restorePlots(); clearInterval(checkMapInterval); }
 }, 1000);
