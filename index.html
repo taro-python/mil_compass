@@ -2,8 +2,8 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Tactical OS v5.4</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Tactical OS v5.5</title>
     
     <script src="https://cdn.jsdelivr.net/npm/mgrs@1.0.0/dist/mgrs.min.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -11,9 +11,13 @@
 
     <style>
         body { background: #000; color: #00ff00; font-family: monospace; margin: 0; overflow: hidden; height: 100vh; width: 100vw; }
-        .mode-compass #map-ui, .mode-compass #info-map { display: none; }
-        .mode-map #compass-full, .mode-map #info-compass { display: none; }
         
+        /* モード表示制御 */
+        .mode-compass #map-ui, .mode-compass #hud-ui, .mode-compass #info-map { display: none; }
+        .mode-map #compass-full, .mode-map #hud-ui, .mode-map #info-compass { display: none; }
+        .mode-hud #compass-full, .mode-hud #map-ui, .mode-hud #info-compass, .mode-hud #info-map { display: none; }
+
+        /* --- 地図照準 --- */
         #crosshair {
             position: absolute; top: 50%; left: 50%; width: 40px; height: 40px;
             transform: translate(-50%, -50%); pointer-events: none; z-index: 1001;
@@ -21,7 +25,7 @@
         #crosshair::before { content:''; position:absolute; top:19px; left:0; width:40px; height:2px; background:#ff0000; }
         #crosshair::after { content:''; position:absolute; top:0; left:19px; width:2px; height:40px; background:#ff0000; }
 
-        /* ミニコンパス */
+        /* --- ミニコンパス (MAP用) --- */
         #compass-mini {
             position: absolute; bottom: 30px; left: 20px; width: 90px; height: 90px;
             z-index: 2000; border: 2px solid #00ff00; border-radius: 50%;
@@ -29,6 +33,12 @@
         }
         #mini-val { position: absolute; bottom: -25px; width: 100%; text-align: center; color: #00ff00; font-weight: bold; font-size: 0.9rem; }
 
+        /* --- HUDモード専用UI --- */
+        #hud-ui { position: relative; width: 100vw; height: 100vh; }
+        #video-feed { position: absolute; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
+        #hud-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; }
+
+        /* --- 共通パネル --- */
         .info-panel { 
             position: absolute; top: 10px; right: 10px; z-index: 2000;
             background: rgba(0,0,0,0.8); padding: 8px; border-radius: 5px; border: 1px solid #00ff00;
@@ -36,18 +46,16 @@
         .val { font-size: 0.95rem; font-weight: bold; display: block; margin-bottom: 2px; }
         .label { font-size: 0.6rem; color: #888; }
 
-        /* コンパス画面 */
+        /* --- コンパス画面 --- */
         #compass-full { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; }
         #face-full { width: 280px; height: 280px; border: 4px solid #00ff00; border-radius: 50%; position: relative; }
-        /* 針を真上に固定 */
         #needle-fixed { width: 4px; height: 150px; background: #ff0000; position: absolute; left: 50%; top: -10px; transform: translateX(-50%); z-index: 10; }
 
-        .direction-marker {
-            width: 0; height: 0; border-left: 10px solid transparent; border-right: 10px solid transparent;
-            border-bottom: 20px solid #00ff00; filter: drop-shadow(0 0 5px #00ff00);
-        }
+        /* マップ矢印 */
+        .direction-marker { width: 0; height: 0; border-left: 10px solid transparent; border-right: 10px solid transparent; border-bottom: 20px solid #00ff00; }
 
-        #menu-btn { position: absolute; top: 15px; left: 15px; font-size: 2rem; z-index: 3000; cursor: pointer; color: #00ff00; }
+        /* UIパーツ */
+        #menu-btn { position: absolute; top: 15px; left: 15px; font-size: 2rem; z-index: 3000; cursor: pointer; color: #00ff00; text-shadow: 0 0 5px #000; }
         #side-menu { position: fixed; top: 0; left: -260px; width: 250px; height: 100%; background: #111; z-index: 4000; transition: 0.3s; border-right: 1px solid #00ff00; }
         #side-menu.open { left: 0; }
         #map { width: 100%; height: 100%; position: absolute; background: #111; }
@@ -57,8 +65,8 @@
 <body class="mode-compass">
 
     <div id="start-screen" onclick="initSystem()">
-        <h2 style="color:#00ff00;">TACTICAL OS v5.4</h2>
-        <p style="color:#00ff00;">TAP TO START</p>
+        <h2 style="color:#00ff00;">TACTICAL OS v5.5</h2>
+        <p style="color:#00ff00;">INITIALIZE SENSORS</p>
     </div>
 
     <div id="menu-btn" onclick="toggleMenu()">&#9776;</div>
@@ -66,6 +74,7 @@
         <div style="padding:20px; border-bottom:1px solid #333;">TACTICAL MENU</div>
         <div style="padding:15px;" onclick="switchMode('compass')">＞ COMPASS MODE</div>
         <div style="padding:15px;" onclick="switchMode('map')">＞ MAP MODE</div>
+        <div style="padding:15px;" onclick="switchMode('hud')">＞ HUD (AR) MODE</div>
         <div style="padding:15px;" onclick="toggleMenu()">CLOSE</div>
     </div>
 
@@ -92,17 +101,25 @@
         <div id="map"></div>
         <div id="compass-mini">
             <div id="mini-face-container" style="width:100%; height:100%; position:relative;">
-                <div id="mini-needle" style="width:2px; height:45px; background:#ff0000; position:absolute; left:50%; top:0; transform:translateX(-50%); z-index:10;"></div>
+                <div style="width:2px; height:45px; background:#ff0000; position:absolute; left:50%; top:0; transform:translateX(-50%); z-index:10;"></div>
                 <div id="mini-face" style="width:100%; height:100%; position:relative;"></div>
             </div>
             <div id="mini-val">0000</div>
         </div>
     </div>
 
+    <div id="hud-ui">
+        <video id="video-feed" autoplay playsinline muted></video>
+        <canvas id="hud-canvas"></canvas>
+    </div>
+
     <script>
-        let map, selfMarker, selfPos = null, currentDeclination = 0;
+        let map, selfMarker, selfPos = null, currentDeclination = 0, currentTrueHeading = 0;
+        let videoStream = null;
         const faceFull = document.getElementById('face-full');
         const faceMini = document.getElementById('mini-face');
+        const hudCanvas = document.getElementById('hud-canvas');
+        const hudCtx = hudCanvas.getContext('2d');
 
         function drawTicks(el, isMini) {
             for (let i = 0; i < 32; i++) {
@@ -116,76 +133,72 @@
         drawTicks(faceFull, false); drawTicks(faceMini, true);
 
         function toggleMenu() { document.getElementById('side-menu').classList.toggle('open'); }
-        function switchMode(m) { 
+        
+        async function switchMode(m) { 
             document.body.className = 'mode-' + m; 
-            if(m==='map' && map) setTimeout(() => { map.invalidateSize(); if(selfPos) map.setView(selfPos, 17); }, 300);
-            toggleMenu(); 
-        }
+            toggleMenu();
 
-        // 方位角更新関数
-        function updateHeading(h) {
-            if (h === null || h === undefined) return;
-            const trueH = (h + currentDeclination + 360) % 360;
-            const milVal = Math.round(trueH * (6400 / 360)).toString().padStart(4, '0');
-            
-            // 盤面を回転（マイナス回転）
-            faceFull.style.transform = `rotate(-${trueH}deg)`;
-            faceMini.style.transform = `rotate(-${trueH}deg)`;
-            
-            document.getElementById('mil-display-f').innerText = milVal + " MIL";
-            document.getElementById('mini-val').innerText = milVal;
-            
-            const arrow = document.getElementById('self-arrow');
-            if(arrow) arrow.style.transform = `rotate(${trueH}deg)`;
-        }
-
-        async function initSystem() {
-            document.getElementById('start-screen').style.display = 'none';
-            
-            // iPhone/iOS センサー許可
-            if (window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission === 'function') {
-                const response = await DeviceOrientationEvent.requestPermission();
-                if (response === 'granted') {
-                    window.addEventListener('deviceorientation', (e) => {
-                        const h = e.webkitCompassHeading || (e.absolute ? 360 - e.alpha : null);
-                        updateHeading(h);
-                    }, true);
-                }
-            } else {
-                // Android等
-                window.addEventListener('deviceorientationabsolute', (e) => updateHeading(360 - e.alpha), true);
-                window.addEventListener('deviceorientation', (e) => {
-                    if (e.webkitCompassHeading) updateHeading(e.webkitCompassHeading);
-                }, true);
+            // カメラ制御
+            if (m === 'hud') {
+                try {
+                    videoStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                    document.getElementById('video-feed').srcObject = videoStream;
+                    resizeHUD();
+                } catch(e) { alert("カメラの起動に失敗しました"); }
+            } else if (videoStream) {
+                videoStream.getTracks().forEach(track => track.stop());
+                videoStream = null;
             }
 
-            // マップ初期設定
-            map = L.map('map', { zoomControl: false });
-            L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg', { maxZoom: 18 }).addTo(map);
-
-            const arrowIcon = L.divIcon({ className: 'd-marker', html: '<div id="self-arrow" class="direction-marker"></div>', iconSize: [20, 20], iconAnchor: [10, 10] });
-            selfMarker = L.marker([0,0], { icon: arrowIcon }).addTo(map);
-
-            map.on('move', () => {
-                const center = map.getCenter();
-                if(selfPos) {
-                    const dist = L.latLng(selfPos).distanceTo(center);
-                    document.getElementById('range-val').innerText = `${Math.round(dist)} m`;
-                }
-                document.getElementById('center-mgrs').innerText = mgrs.forward([center.lng, center.lat]);
-            });
-
-            navigator.geolocation.watchPosition((pos) => {
-                const lat = pos.coords.latitude, lon = pos.coords.longitude;
-                selfPos = [lat, lon];
-                const mCode = mgrs.forward([lon, lat]);
-                document.getElementById('self-mgrs-c').innerText = mCode;
-                document.getElementById('self-mgrs-m').innerText = mCode;
-                if (!window.initialSet) { map.setView(selfPos, 17); window.initialSet = true; }
-                selfMarker.setLatLng(selfPos);
-                currentDeclination = - ( (lat - 37) * 0.2 + (lon - 135) * 0.1 + 7.5 );
-            }, null, { enableHighAccuracy: true });
+            if(m === 'map' && map) setTimeout(() => { map.invalidateSize(); if(selfPos) map.setView(selfPos, 17); }, 300);
         }
-    </script>
-</body>
-</html>
+
+        function resizeHUD() {
+            hudCanvas.width = window.innerWidth;
+            hudCanvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeHUD);
+
+        function drawHUD() {
+            if (document.body.className !== 'mode-hud') { requestAnimationFrame(drawHUD); return; }
+            
+            hudCtx.clearRect(0, 0, hudCanvas.width, hudCanvas.height);
+            const cx = hudCanvas.width / 2;
+            const cy = hudCanvas.height / 2;
+            const milStr = Math.round(currentTrueHeading * (6400 / 360)).toString().padStart(4, '0');
+
+            // レティクル
+            hudCtx.strokeStyle = '#00ff00';
+            hudCtx.lineWidth = 1;
+            hudCtx.beginPath();
+            hudCtx.moveTo(cx, 0); hudCtx.lineTo(cx, hudCanvas.height);
+            hudCtx.moveTo(0, cy); hudCtx.lineTo(hudCanvas.width, cy);
+            
+            // 簡易メモリ
+            for(let i = 1; i <= 10; i++) {
+                let d = i * 25;
+                hudCtx.moveTo(cx + d, cy - 5); hudCtx.lineTo(cx + d, cy + 5);
+                hudCtx.moveTo(cx - d, cy - 5); hudCtx.lineTo(cx - d, cy + 5);
+            }
+            hudCtx.stroke();
+
+            // MGRS (右下)
+            const mgrsStr = "MGRS: " + document.getElementById('self-mgrs-c').innerText;
+            hudCtx.font = '16px monospace';
+            hudCtx.fillStyle = 'rgba(0,0,0,0.6)';
+            hudCtx.fillRect(hudCanvas.width - 240, hudCanvas.height - 40, 230, 30);
+            hudCtx.fillStyle = '#00ff00';
+            hudCtx.fillText(mgrsStr, hudCanvas.width - 230, hudCanvas.height - 20);
+
+            // MIL (下部)
+            hudCtx.font = 'bold 32px monospace';
+            hudCtx.fillStyle = 'rgba(0,0,0,0.6)';
+            hudCtx.fillRect(cx - 85, hudCanvas.height - 100, 170, 50);
+            hudCtx.fillStyle = '#00ff00';
+            hudCtx.fillText(milStr + " MIL", cx - 75, hudCanvas.height - 65);
+
+            requestAnimationFrame(drawHUD);
+        }
+
+        function updateHeading(h) {
+            if (h === null |
