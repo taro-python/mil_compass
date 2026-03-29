@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Tactical OS v5.5</title>
+    <title>Tactical OS v5.6</title>
     
     <script src="https://cdn.jsdelivr.net/npm/mgrs@1.0.0/dist/mgrs.min.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -17,7 +17,7 @@
         .mode-map #compass-full, .mode-map #hud-ui, .mode-map #info-compass { display: none; }
         .mode-hud #compass-full, .mode-hud #map-ui, .mode-hud #info-compass, .mode-hud #info-map { display: none; }
 
-        /* --- 地図照準 --- */
+        /* 照準 */
         #crosshair {
             position: absolute; top: 50%; left: 50%; width: 40px; height: 40px;
             transform: translate(-50%, -50%); pointer-events: none; z-index: 1001;
@@ -25,7 +25,7 @@
         #crosshair::before { content:''; position:absolute; top:19px; left:0; width:40px; height:2px; background:#ff0000; }
         #crosshair::after { content:''; position:absolute; top:0; left:19px; width:2px; height:40px; background:#ff0000; }
 
-        /* --- ミニコンパス (MAP用) --- */
+        /* ミニコンパス */
         #compass-mini {
             position: absolute; bottom: 30px; left: 20px; width: 90px; height: 90px;
             z-index: 2000; border: 2px solid #00ff00; border-radius: 50%;
@@ -33,41 +33,49 @@
         }
         #mini-val { position: absolute; bottom: -25px; width: 100%; text-align: center; color: #00ff00; font-weight: bold; font-size: 0.9rem; }
 
-        /* --- HUDモード専用UI --- */
+        /* HUD */
         #hud-ui { position: relative; width: 100vw; height: 100vh; }
         #video-feed { position: absolute; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
         #hud-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; }
 
-        /* --- 共通パネル --- */
+        /* パネル */
         .info-panel { 
             position: absolute; top: 10px; right: 10px; z-index: 2000;
-            background: rgba(0,0,0,0.8); padding: 8px; border-radius: 5px; border: 1px solid #00ff00;
+            background: rgba(0,0,0,0.8); padding: 10px; border-radius: 5px; border: 1px solid #00ff00; min-width: 140px;
         }
-        .val { font-size: 0.95rem; font-weight: bold; display: block; margin-bottom: 2px; }
+        .val { font-size: 0.95rem; font-weight: bold; display: block; margin-bottom: 2px; letter-spacing: 1px; }
         .label { font-size: 0.6rem; color: #888; }
 
-        /* --- コンパス画面 --- */
+        /* コンパス画面 */
         #compass-full { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; }
-        #face-full { width: 280px; height: 280px; border: 4px solid #00ff00; border-radius: 50%; position: relative; }
+        #face-full { width: 280px; height: 280px; border: 4px solid #00ff00; border-radius: 50%; position: relative; transition: transform 0.1s linear; }
         #needle-fixed { width: 4px; height: 150px; background: #ff0000; position: absolute; left: 50%; top: -10px; transform: translateX(-50%); z-index: 10; }
 
-        /* マップ矢印 */
         .direction-marker { width: 0; height: 0; border-left: 10px solid transparent; border-right: 10px solid transparent; border-bottom: 20px solid #00ff00; }
 
-        /* UIパーツ */
         #menu-btn { position: absolute; top: 15px; left: 15px; font-size: 2rem; z-index: 3000; cursor: pointer; color: #00ff00; text-shadow: 0 0 5px #000; }
         #side-menu { position: fixed; top: 0; left: -260px; width: 250px; height: 100%; background: #111; z-index: 4000; transition: 0.3s; border-right: 1px solid #00ff00; }
         #side-menu.open { left: 0; }
         #map { width: 100%; height: 100%; position: absolute; background: #111; }
-        #start-screen { position: fixed; inset: 0; background: #000; z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        
+        /* スタート画面を全面ボタン化 */
+        #start-screen { 
+            position: fixed; inset: 0; background: #000; z-index: 9999; 
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body class="mode-compass">
 
     <div id="start-screen" onclick="initSystem()">
-        <h2 style="color:#00ff00;">TACTICAL OS v5.5</h2>
-        <p style="color:#00ff00;">INITIALIZE SENSORS</p>
+        <h1 style="color:#00ff00; margin-bottom:10px;">TACTICAL OS v5.6</h1>
+        <div style="border: 1px solid #00ff00; padding: 20px; border-radius: 10px;">
+            <p style="color:#00ff00; animation: blink 1.5s infinite;">[ TAP TO INITIALIZE ]</p>
+        </div>
     </div>
+
+    <style> @keyframes blink { 0% {opacity:1} 50% {opacity:0.3} 100% {opacity:1} } </style>
 
     <div id="menu-btn" onclick="toggleMenu()">&#9776;</div>
     <div id="side-menu">
@@ -102,7 +110,7 @@
         <div id="compass-mini">
             <div id="mini-face-container" style="width:100%; height:100%; position:relative;">
                 <div style="width:2px; height:45px; background:#ff0000; position:absolute; left:50%; top:0; transform:translateX(-50%); z-index:10;"></div>
-                <div id="mini-face" style="width:100%; height:100%; position:relative;"></div>
+                <div id="mini-face" style="width:100%; height:100%; position:relative; transition: transform 0.1s linear;"></div>
             </div>
             <div id="mini-val">0000</div>
         </div>
@@ -121,6 +129,10 @@
         const hudCanvas = document.getElementById('hud-canvas');
         const hudCtx = hudCanvas.getContext('2d');
 
+        function formatMGRS(str) {
+            return str.replace(/(\d{2}[A-Z]{3})(\d{5})(\d{5})/, '$1 $2 $3');
+        }
+
         function drawTicks(el, isMini) {
             for (let i = 0; i < 32; i++) {
                 const d = document.createElement('div');
@@ -138,13 +150,13 @@
             document.body.className = 'mode-' + m; 
             toggleMenu();
 
-            // カメラ制御
             if (m === 'hud') {
                 try {
                     videoStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
                     document.getElementById('video-feed').srcObject = videoStream;
                     resizeHUD();
-                } catch(e) { alert("カメラの起動に失敗しました"); }
+                    drawHUD();
+                } catch(e) { console.error("Camera Error:", e); }
             } else if (videoStream) {
                 videoStream.getTracks().forEach(track => track.stop());
                 videoStream = null;
@@ -160,45 +172,30 @@
         window.addEventListener('resize', resizeHUD);
 
         function drawHUD() {
-            if (document.body.className !== 'mode-hud') { requestAnimationFrame(drawHUD); return; }
-            
+            if (document.body.className !== 'mode-hud') return;
             hudCtx.clearRect(0, 0, hudCanvas.width, hudCanvas.height);
             const cx = hudCanvas.width / 2;
             const cy = hudCanvas.height / 2;
             const milStr = Math.round(currentTrueHeading * (6400 / 360)).toString().padStart(4, '0');
 
-            // レティクル
             hudCtx.strokeStyle = '#00ff00';
             hudCtx.lineWidth = 1;
             hudCtx.beginPath();
             hudCtx.moveTo(cx, 0); hudCtx.lineTo(cx, hudCanvas.height);
             hudCtx.moveTo(0, cy); hudCtx.lineTo(hudCanvas.width, cy);
-            
-            // 簡易メモリ
-            for(let i = 1; i <= 10; i++) {
-                let d = i * 25;
-                hudCtx.moveTo(cx + d, cy - 5); hudCtx.lineTo(cx + d, cy + 5);
-                hudCtx.moveTo(cx - d, cy - 5); hudCtx.lineTo(cx - d, cy + 5);
-            }
             hudCtx.stroke();
 
-            // MGRS (右下)
-            const mgrsStr = "MGRS: " + document.getElementById('self-mgrs-c').innerText;
-            hudCtx.font = '16px monospace';
-            hudCtx.fillStyle = 'rgba(0,0,0,0.6)';
-            hudCtx.fillRect(hudCanvas.width - 240, hudCanvas.height - 40, 230, 30);
-            hudCtx.fillStyle = '#00ff00';
-            hudCtx.fillText(mgrsStr, hudCanvas.width - 230, hudCanvas.height - 20);
-
-            // MIL (下部)
             hudCtx.font = 'bold 32px monospace';
             hudCtx.fillStyle = 'rgba(0,0,0,0.6)';
-            hudCtx.fillRect(cx - 85, hudCanvas.height - 100, 170, 50);
+            hudCtx.fillRect(cx - 85, hudCanvas.height - 120, 170, 50);
             hudCtx.fillStyle = '#00ff00';
-            hudCtx.fillText(milStr + " MIL", cx - 75, hudCanvas.height - 65);
+            hudCtx.fillText(milStr + " MIL", cx - 75, hudCanvas.height - 85);
 
             requestAnimationFrame(drawHUD);
         }
 
         function updateHeading(h) {
-            if (h === null |
+            if (h === null || h === undefined) return;
+            currentTrueHeading = (h + currentDeclination + 360) % 360;
+            const milVal = Math.round(currentTrueHeading * (6400 / 360)).toString().padStart(4, '0');
+            faceFull.style.transform = `rotate(-${currentTrueHeading}deg)`;
