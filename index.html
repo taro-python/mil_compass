@@ -3,202 +3,170 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>MIL Compass (True North Mode)</title>
+    <title>MIL Compass & Map</title>
+    
     <script src="https://cdn.jsdelivr.net/npm/mgrs@1.0.0/dist/mgrs.min.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
     <style>
         body { 
             background: #1a1a1a; color: #00ff00; font-family: 'Courier New', monospace; 
-            display: flex; flex-direction: column; align-items: center; 
-            justify-content: center; height: 100vh; margin: 0; overflow: hidden; 
+            margin: 0; overflow: hidden; height: 100vh; width: 100vw;
         }
 
-        /* ハンバーガーメニューボタン */
+        /* モード切り替え用の表示制御 */
+        .mode-compass #map-container { display: none; }
+        .mode-compass #compass-container { display: flex; }
+        .mode-map #map-container { display: block; }
+        .mode-map #compass-container { display: none; }
+
+        /* コンパス画面 */
+        #compass-container {
+            flex-direction: column; align-items: center; justify-content: center; height: 100%;
+        }
+
+        /* マップ画面 */
+        #map-container { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1; }
+
+        /* UI要素（共通） */
         #menu-btn {
-            position: absolute; top: 15px; left: 15px;
-            font-size: 2rem; color: #00ff00; cursor: pointer; z-index: 100;
-            background: rgba(0,0,0,0.3); padding: 5px 10px; border-radius: 5px;
+            position: absolute; top: 15px; left: 15px; font-size: 2rem; 
+            color: #00ff00; cursor: pointer; z-index: 1000;
+            background: rgba(0,0,0,0.5); padding: 5px 10px; border-radius: 5px;
+        }
+
+        #info-panel { 
+            position: absolute; top: 10px; right: 10px; font-size: 0.85rem; text-align: right; 
+            z-index: 1000; background: rgba(0,0,0,0.7); padding: 8px; border-radius: 5px; border: 1px solid #333;
         }
 
         /* サイドメニュー */
         #side-menu {
-            position: fixed; top: 0; left: -260px;
-            width: 250px; height: 100%;
-            background: #111; border-right: 2px solid #00ff00;
-            transition: 0.3s; z-index: 101;
-            display: flex; flex-direction: column;
-            box-shadow: 5px 0 15px rgba(0,0,0,0.5);
+            position: fixed; top: 0; left: -260px; width: 250px; height: 100%;
+            background: #111; border-right: 2px solid #00ff00; transition: 0.3s; z-index: 2000;
         }
         #side-menu.open { left: 0; }
-
-        .menu-header { padding: 20px; border-bottom: 1px solid #00ff00; font-weight: bold; }
-        .menu-item { padding: 15px 20px; border-bottom: 1px solid #222; cursor: pointer; }
+        .menu-header { padding: 20px; border-bottom: 1px solid #00ff00; font-weight: bold; background: #222; }
+        .menu-item { padding: 15px 20px; border-bottom: 1px solid #222; cursor: pointer; color: #00ff00; }
         .menu-item:hover { background: #00ff00; color: #000; }
 
-        /* オーバーレイ */
-        #overlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.7); display: none; z-index: 99;
-        }
-        #overlay.show { display: block; }
-
-        /* 情報表示エリア */
-        #info-panel { 
-            position: absolute; top: 10px; right: 10px; 
-            font-size: 0.85rem; text-align: right; line-height: 1.4; 
-            background: rgba(0,0,0,0.6); padding: 8px; border-radius: 5px; border: 1px solid #333;
-        }
-        .data-label { color: #888; font-size: 0.7rem; display: block; }
-
-        /* コンパス構造 */
-        .container { position: relative; width: 300px; height: 300px; margin-top: 20px; }
-        #compass-face {
-            width: 300px; height: 300px;
-            border: 4px solid #00ff00; border-radius: 50%;
-            position: absolute; transition: transform 0.1s linear;
-        }
-        #needle {
-            width: 4px; height: 160px; background: #ff0000;
-            position: absolute; left: 50%; top: -10px; transform: translateX(-50%); z-index: 10;
-        }
-
-        /* 方位ラベル */
+        /* コンパスデザイン（既存踏襲） */
+        .compass-ui { position: relative; width: 300px; height: 300px; }
+        #compass-face { width: 300px; height: 300px; border: 4px solid #00ff00; border-radius: 50%; position: absolute; }
+        #needle { width: 4px; height: 160px; background: #ff0000; position: absolute; left: 50%; top: -10px; transform: translateX(-50%); z-index: 10; }
         .label { position: absolute; color: #00ff00; font-weight: bold; font-size: 1.5rem; }
         #label-n { top: -45px; left: 50%; transform: translateX(-50%); }
-        #label-e { right: -40px; top: 50%; transform: translateY(-50%); }
-        #label-s { bottom: -45px; left: 50%; transform: translateX(-50%); }
-        #label-w { left: -40px; top: 50%; transform: translateY(-50%); }
-
-        /* 目盛り */
-        .tick-container { position: absolute; width: 100%; height: 100%; top: 0; left: 0; }
-        .tick { width: 2px; height: 15px; background: #00ff00; margin: 0 auto; }
-        .long-tick { height: 30px; background: #ffffff; width: 3px; }
-
-        #display { font-size: 3.2rem; margin-top: 60px; font-weight: bold; text-shadow: 0 0 10px #00ff00; }
-        #sub-display { font-size: 0.9rem; color: #888; letter-spacing: 2px; }
+        #display { font-size: 3.2rem; margin-top: 60px; font-weight: bold; }
 
         #start-btn {
-            padding: 15px 30px; font-size: 1.2rem; margin-top: 30px;
-            background: #00ff00; color: #000; border: none; border-radius: 5px;
-            font-weight: bold; cursor: pointer; z-index: 110;
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            padding: 20px 40px; font-size: 1.5rem; background: #00ff00; color: #000;
+            border: none; border-radius: 10px; font-weight: bold; z-index: 3000; cursor: pointer;
         }
     </style>
 </head>
-<body>
+<body class="mode-compass">
 
     <div id="menu-btn" onclick="toggleMenu()">&#9776;</div>
 
     <div id="side-menu">
-        <div class="menu-header">MIL COMPASS SETTINGS</div>
-        <div class="menu-item">PDF Map Selection</div>
-        <div class="menu-item">Manual Declination Adj.</div>
-        <div class="menu-item">Coordinate Precision</div>
-        <div class="menu-item" onclick="toggleMenu()">Close</div>
+        <div class="menu-header">MIL SYSTEM v3.0</div>
+        <div class="menu-item" onclick="switchMode('compass')">＞ COMPASS MODE</div>
+        <div class="menu-item" onclick="switchMode('map')">＞ MAP MODE</div>
+        <div class="menu-item" onclick="toggleMenu()">CLOSE</div>
     </div>
-
-    <div id="overlay" onclick="toggleMenu()"></div>
 
     <div id="info-panel">
-        <div><span class="data-label">MGRS COORDINATE</span><span id="mgrs-text">GPS OFF</span></div>
-        <div style="margin-top:5px;"><span class="data-label">MAGN. DECLINATION</span><span id="decl-text">0.0°</span></div>
+        <div><span id="mgrs-text" style="font-size:1.1rem;">GPS OFF</span></div>
+        <div style="color:#888; font-size:0.7rem;">DEC: <span id="decl-text">0.0°</span></div>
     </div>
 
-    <div class="container">
-        <div id="needle"></div>
-        <div id="compass-face">
-            <div class="label" id="label-n">N</div>
-            <div class="label" id="label-e">E</div>
-            <div class="label" id="label-s">S</div>
-            <div class="label" id="label-w">W</div>
+    <div id="compass-container">
+        <div class="compass-ui">
+            <div id="needle"></div>
+            <div id="compass-face">
+                <div class="label" id="label-n">N</div>
+            </div>
         </div>
+        <div id="display">0000 MIL</div>
     </div>
-    
-    <div id="display">0000 MIL</div>
-    <div id="sub-display">TRUE NORTH MODE</div>
-    <button id="start-btn">ACTIVATE SENSORS</button>
+
+    <div id="map-container"></div>
+
+    <button id="start-btn" onclick="initSystem()">START SYSTEM</button>
 
     <script>
+        let map, marker, currentDeclination = 0;
         const face = document.getElementById('compass-face');
         const display = document.getElementById('display');
-        const btn = document.getElementById('start-btn');
         const mgrsText = document.getElementById('mgrs-text');
         const declText = document.getElementById('decl-text');
-        const menu = document.getElementById('side-menu');
-        const overlay = document.getElementById('overlay');
 
-        let currentDeclination = 0; 
-
-        // 6400ミル目盛りの描画
+        // コンパス目盛り描画
         for (let i = 0; i < 32; i++) {
-            const container = document.createElement('div');
-            container.className = 'tick-container';
-            container.style.transform = `rotate(${i * 11.25}deg)`;
+            const div = document.createElement('div');
+            div.style.position = 'absolute';
+            div.style.width = '100%';
+            div.style.height = '100%';
+            div.style.transform = `rotate(${i * 11.25}deg)`;
             const tick = document.createElement('div');
-            tick.className = (i % 4 === 0) ? 'tick long-tick' : 'tick';
-            container.appendChild(tick);
-            face.appendChild(container);
+            tick.style.width = (i % 4 === 0) ? '4px' : '2px';
+            tick.style.height = (i % 4 === 0) ? '30px' : '15px';
+            tick.style.background = (i % 4 === 0) ? '#fff' : '#00ff00';
+            tick.style.margin = '0 auto';
+            div.appendChild(tick);
+            face.appendChild(div);
         }
 
-        // メニュー開閉
-        function toggleMenu() {
-            menu.classList.toggle('open');
-            overlay.classList.toggle('show');
+        function toggleMenu() { document.getElementById('side-menu').classList.toggle('open'); }
+
+        function switchMode(mode) {
+            document.body.className = (mode === 'map') ? 'mode-map' : 'mode-compass';
+            if (mode === 'map' && map) setTimeout(() => map.invalidateSize(), 200);
+            toggleMenu();
         }
 
-        btn.addEventListener('click', async () => {
-            // iOSのセンサー許可リクエスト
-            if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-                try {
-                    const p = await DeviceOrientationEvent.requestPermission();
-                    if (p !== 'granted') {
-                        alert("センサーへのアクセスが拒否されました。設定を確認してください。");
-                        return;
-                    }
-                } catch (e) { console.error(e); }
-            }
+        async function initSystem() {
+            document.getElementById('start-btn').style.display = 'none';
             
-            // 位置情報取得開始
-            if (navigator.geolocation) {
-                navigator.geolocation.watchPosition((pos) => {
-                    const lat = pos.coords.latitude;
-                    const lon = pos.coords.longitude;
-                    
-                    // MGRS変換
-                    try {
-                        const mgrsResult = mgrs.forward([lon, lat]);
-                        mgrsText.innerText = mgrsResult;
-                    } catch(e) { mgrsText.innerText = "COORD ERROR"; }
-
-                    // 日本近海の簡易偏角計算モデル（西偏を負で算出）
-                    currentDeclination = - ( (lat - 37) * 0.2 + (lon - 135) * 0.1 + 7.5 );
-                    declText.innerText = `${Math.abs(currentDeclination).toFixed(1)}° W`;
-                }, (err) => {
-                    mgrsText.innerText = "GPS ERROR";
-                }, { enableHighAccuracy: true });
+            // センサー許可 (iOS)
+            if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+                await DeviceOrientationEvent.requestPermission();
             }
 
-            btn.style.display = 'none';
-            startCompass();
-        });
+            // マップ初期化
+            map = L.map('map-container').setView([35.68, 139.76], 13);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap'
+            }).addTo(map);
+            marker = L.marker([35.68, 139.76]).addTo(map);
 
-        function startCompass() {
-            window.addEventListener('deviceorientation', (event) => {
-                let magHeading = event.webkitCompassHeading; // 磁北（iOS）
+            // 位置情報監視
+            navigator.geolocation.watchPosition((pos) => {
+                const lat = pos.coords.latitude;
+                const lon = pos.coords.longitude;
                 
-                // Android等、webkitCompassHeadingがない場合の簡易対応
-                if (magHeading === undefined) {
-                    magHeading = 360 - event.alpha; 
-                }
+                // MGRS更新
+                mgrsText.innerText = mgrs.forward([lon, lat]);
+                
+                // 偏角計算 (西偏)
+                currentDeclination = - ( (lat - 37) * 0.2 + (lon - 135) * 0.1 + 7.5 );
+                declText.innerText = `${Math.abs(currentDeclination).toFixed(1)}° W`;
 
-                if (magHeading !== undefined) {
-                    // 真北補正 = 磁北 + 偏角常数
-                    let trueHeading = (magHeading + currentDeclination + 360) % 360;
-                    
-                    // 盤面の回転（Map-Up的な視覚効果）
+                // マップ更新
+                const newPos = [lat, lon];
+                map.panTo(newPos);
+                marker.setLatLng(newPos);
+            }, null, { enableHighAccuracy: true });
+
+            // 方位監視
+            window.addEventListener('deviceorientation', (event) => {
+                let heading = event.webkitCompassHeading || (360 - event.alpha);
+                if (heading) {
+                    let trueHeading = (heading + currentDeclination + 360) % 360;
                     face.style.transform = `rotate(-${trueHeading}deg)`;
-                    
-                    // ミル計算 (360度 = 6400ミル)
-                    let mils = Math.round(trueHeading * (6400 / 360));
-                    display.innerText = mils.toString().padStart(4, '0') + " MIL";
+                    display.innerText = Math.round(trueHeading * (6400 / 360)).toString().padStart(4, '0') + " MIL";
                 }
             });
         }
