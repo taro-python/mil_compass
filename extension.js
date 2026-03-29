@@ -1,27 +1,25 @@
-/* --- Tactical OS Extension v1.5: Vertical Right-Side UI --- */
+/* --- Tactical OS Extension v1.6: Lower Right-Side UI --- */
 
-// 1. スタイルの注入（配置を右側縦一列に変更）
 const extensionStyle = document.createElement('style');
 extensionStyle.innerHTML = `
-    /* ボタンの共通デザイン */
     .t-btn {
         position: absolute; z-index: 3000; display: none;
         background: rgba(0, 20, 0, 0.85); color: #00ff00;
         border: 1px solid #00ff00; font-family: 'Courier New', monospace;
         font-weight: bold; font-size: 11px; cursor: pointer;
-        padding: 12px 8px; text-transform: uppercase;
-        letter-spacing: 1px; width: 100px; text-align: center;
+        padding: 10px 5px; text-transform: uppercase;
+        letter-spacing: 1px; width: 90px; text-align: center;
         box-shadow: 0 0 10px rgba(0, 255, 0, 0.2);
     }
     .t-btn:active { background: #00ff00; color: #000; }
     .mode-map .t-btn { display: block; }
 
-    /* 右側縦一列の配置設定 */
-    #plot-btn  { top: 70px;  right: 15px; border-width: 2px; } /* メイン機能 */
-    #input-btn { top: 130px; right: 15px; }                   /* 手動入力 */
-    #list-btn  { top: 190px; right: 15px; }                   /* 履歴表示 */
+    /* 右下に縦に並べる設定 */
+    /* 下から順に、120px, 180px, 240pxの位置に配置（Leafletロゴ等を避けるため少し上から） */
+    #list-btn  { bottom: 120px; right: 15px; }                   
+    #input-btn { bottom: 180px; right: 15px; }                   
+    #plot-btn  { bottom: 240px; right: 15px; border-width: 2px; } 
 
-    /* パネルのデザイン */
     .ext-panel {
         position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
         width: 85%; max-width: 350px; max-height: 80vh;
@@ -37,7 +35,6 @@ extensionStyle.innerHTML = `
     .mark-opt { border: 1px solid #004400; padding: 10px; flex: 1; text-align: center; cursor: pointer; }
     .mark-opt.active { border-color: #00ff00; background: rgba(0,255,0,0.1); }
 
-    /* ポップアップのズレ修正 */
     .leaflet-popup-content-wrapper { 
         background: #000 !important; color: #00ff00 !important; 
         border: 1px solid #00ff00; border-radius: 0; font-family: monospace; 
@@ -52,7 +49,6 @@ extensionStyle.innerHTML = `
 `;
 document.head.appendChild(extensionStyle);
 
-// 2. UI要素の作成
 document.body.insertAdjacentHTML('beforeend', `
     <div id="plot-btn" class="t-btn">MARK<br>CENTER</div>
     <div id="input-btn" class="t-btn">MANUAL<br>INPUT</div>
@@ -84,7 +80,6 @@ document.body.insertAdjacentHTML('beforeend', `
     </div>
 `);
 
-// 3. ロジック部（マーカー修正込み）
 let savedPlots = JSON.parse(localStorage.getItem('tactical_plots') || '[]');
 let markersOnMap = [];
 let selectedMark = '●';
