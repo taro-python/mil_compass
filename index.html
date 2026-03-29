@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Tactical OS v5.2</title>
+    <title>Tactical OS v5.3</title>
     
     <script src="https://cdn.jsdelivr.net/npm/mgrs@1.0.0/dist/mgrs.min.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -11,12 +11,9 @@
 
     <style>
         body { background: #000; color: #00ff00; font-family: monospace; margin: 0; overflow: hidden; height: 100vh; width: 100vw; }
-        
-        /* モード管理 */
         .mode-compass #map-ui, .mode-compass #info-map { display: none; }
         .mode-map #compass-full, .mode-map #info-compass { display: none; }
         
-        /* 地図照準 */
         #crosshair {
             position: absolute; top: 50%; left: 50%; width: 40px; height: 40px;
             transform: translate(-50%, -50%); pointer-events: none; z-index: 1001;
@@ -24,7 +21,6 @@
         #crosshair::before { content:''; position:absolute; top:19px; left:0; width:40px; height:2px; background:#ff0000; }
         #crosshair::after { content:''; position:absolute; top:0; left:19px; width:2px; height:40px; background:#ff0000; }
 
-        /* ミニコンパス */
         #compass-mini {
             position: absolute; bottom: 20px; left: 20px; width: 90px; height: 90px;
             z-index: 2000; border: 2px solid #00ff00; border-radius: 50%;
@@ -32,25 +28,20 @@
         }
         #mini-val { position: absolute; bottom: -22px; width: 100%; text-align: center; color: #00ff00; font-weight: bold; font-size: 0.8rem; }
 
-        /* パネル */
         .info-panel { 
             position: absolute; top: 10px; right: 10px; z-index: 2000;
             background: rgba(0,0,0,0.8); padding: 8px; border-radius: 5px; border: 1px solid #00ff00;
         }
-        .val { font-size: 1rem; font-weight: bold; display: block; }
+        .val { font-size: 0.95rem; font-weight: bold; display: block; margin-bottom: 2px; }
         .label { font-size: 0.6rem; color: #888; }
 
-        /* コンパス画面 */
         #compass-full { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; }
         #face-full { width: 280px; height: 280px; border: 4px solid #00ff00; border-radius: 50%; position: relative; }
         #needle-full { width: 4px; height: 150px; background: #ff0000; position: absolute; left: 50%; top: -10px; transform: translateX(-50%); z-index: 10; }
 
-        /* 自己位置アイコン（矢印） */
         .direction-marker {
-            width: 0; height: 0;
-            border-left: 10px solid transparent; border-right: 10px solid transparent;
-            border-bottom: 20px solid #00ff00;
-            filter: drop-shadow(0 0 5px #00ff00);
+            width: 0; height: 0; border-left: 10px solid transparent; border-right: 10px solid transparent;
+            border-bottom: 20px solid #00ff00; filter: drop-shadow(0 0 5px #00ff00);
         }
 
         #menu-btn { position: absolute; top: 15px; left: 15px; font-size: 2rem; z-index: 3000; cursor: pointer; color: #00ff00; }
@@ -63,7 +54,7 @@
 <body class="mode-compass">
 
     <div id="start-screen" onclick="initSystem()">
-        <h2 style="color:#00ff00;">TACTICAL OS v5.2</h2>
+        <h2 style="color:#00ff00;">TACTICAL OS v5.3</h2>
         <p style="color:#00ff00;">TAP TO CALIBRATE & START</p>
     </div>
 
@@ -81,6 +72,7 @@
 
     <div id="info-map" class="info-panel">
         <span class="label">SELF MGRS</span><span id="self-mgrs-m" class="val">---</span>
+        <span class="label">CENTER MGRS</span><span id="center-mgrs" class="val">---</span>
         <span class="label">RANGE</span><span id="range-val" class="val" style="color:#ffff00;">0 m</span>
     </div>
 
@@ -101,7 +93,7 @@
     </div>
 
     <script>
-        let map, selfMarker, selfPos = null, currentDeclination = 0, currentTrueHeading = 0;
+        let map, selfMarker, selfPos = null, currentDeclination = 0;
         const faceFull = document.getElementById('face-full');
         const faceMini = document.getElementById('mini-face');
 
@@ -123,30 +115,47 @@
             toggleMenu(); 
         }
 
+        function handleOrientation(e) {
+            let h = e.webkitCompassHeading || (e.absolute ? 360 - e.alpha : null);
+            if (h !== null && h !== undefined) {
+                const trueH = (h + currentDeclination + 360) % 360;
+                const milVal = Math.round(trueH * (6400 / 360)).toString().padStart(4, '0');
+                
+                faceFull.style.transform = `rotate(-${trueH}deg)`;
+                faceMini.style.transform = `rotate(-${trueH}deg)`;
+                document.getElementById('mil-display-f').innerText = milVal + " MIL";
+                document.getElementById('mini-val').innerText = milVal;
+                
+                const arrow = document.getElementById('self-arrow');
+                if(arrow) arrow.style.transform = `rotate(${trueH}deg)`;
+            }
+        }
+
         async function initSystem() {
             document.getElementById('start-screen').style.display = 'none';
             
-            // センサー許可リクエスト
             if (window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission === 'function') {
                 await DeviceOrientationEvent.requestPermission().catch(console.error);
             }
 
-            // マップ初期化
+            window.addEventListener('deviceorientation', handleOrientation, true);
+            window.addEventListener('deviceorientationabsolute', handleOrientation, true);
+
             map = L.map('map', { zoomControl: false });
             L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg', { maxZoom: 18 }).addTo(map);
 
-            // 自己位置矢印アイコン
-            const arrowIcon = L.divIcon({ className: 'direction-marker-container', html: '<div id="self-arrow" class="direction-marker"></div>', iconSize: [20, 20], iconAnchor: [10, 10] });
+            const arrowIcon = L.divIcon({ className: 'd-marker', html: '<div id="self-arrow" class="direction-marker"></div>', iconSize: [20, 20], iconAnchor: [10, 10] });
             selfMarker = L.marker([0,0], { icon: arrowIcon }).addTo(map);
 
             map.on('move', () => {
+                const center = map.getCenter();
                 if(selfPos) {
-                    const dist = L.latLng(selfPos).distanceTo(map.getCenter());
+                    const dist = L.latLng(selfPos).distanceTo(center);
                     document.getElementById('range-val').innerText = `${Math.round(dist)} m`;
                 }
+                document.getElementById('center-mgrs').innerText = mgrs.forward([center.lng, center.lat]);
             });
 
-            // GPS
             navigator.geolocation.watchPosition((pos) => {
                 const lat = pos.coords.latitude, lon = pos.coords.longitude;
                 selfPos = [lat, lon];
@@ -157,29 +166,6 @@
                 selfMarker.setLatLng(selfPos);
                 currentDeclination = - ( (lat - 37) * 0.2 + (lon - 135) * 0.1 + 7.5 );
             }, null, { enableHighAccuracy: true });
-
-            // 方位イベント（確実な方を採用）
-            const handleOrientation = (e) => {
-                let h = e.webkitCompassHeading || (e.absolute ? 360 - e.alpha : null);
-                if (h !== null) {
-                    currentTrueHeading = (h + currentDeclination + 360) % 360;
-                    const milVal = Math.round(currentTrueHeading * (6400 / 360)).toString().padStart(4, '0');
-                    
-                    // UI更新
-                    faceFull.style.transform = `rotate(-${currentTrueHeading}deg)`;
-                    faceMini.style.transform = `rotate(-${currentTrueHeading}deg)`;
-                    document.getElementById('mil-display-f').innerText = milVal + " MIL";
-                    document.getElementById('mini-val').innerText = milVal;
-                    
-                    // マップ上の矢印を回転
-                    const arrow = document.getElementById('self-arrow');
-                    if(arrow) arrow.style.transform = `rotate(${currentTrueHeading}deg)`;
-                }
-            };
-
-            window.addEventListener('deviceorientation', handleOrientation, true);
-            // Android等での絶対方位対応
-            window.addEventListener('deviceorientationabsolute', handleOrientation, true);
         }
     </script>
 </body>
