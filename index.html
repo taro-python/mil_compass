@@ -1,37 +1,179 @@
-<script>
-    async function initSystem() {
-        try {
-            console.log("Initialization started...");
-            // UIを即座に非表示
-            document.getElementById('start-screen').style.display = 'none';
-            
-            // 1. 地図の準備
-            map = L.map('map', { zoomControl: false });
-            L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg', { maxZoom: 18 }).addTo(map);
-            
-            // 2. センサー許可 (iOS)
-            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-                const permission = await DeviceOrientationEvent.requestPermission();
-                if (permission !== 'granted') {
-                    alert("センサーの許可が拒否されました。設定を確認してください。");
-                } else {
-                    window.addEventListener('deviceorientation', (e) => updateHeading(e.webkitCompassHeading || (e.absolute ? 360 - e.alpha : null)), true);
-                }
-            } else {
-                window.addEventListener('deviceorientationabsolute', (e) => updateHeading(360 - e.alpha), true);
-            }
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Tactical OS v5.8</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/mgrs@1.0.0/dist/mgrs.min.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-            // 3. 位置情報の取得
-            navigator.geolocation.watchPosition((pos) => {
-                // 位置情報取得成功時の処理（既存通り）
-                selfPos = [pos.coords.latitude, pos.coords.longitude];
-                // ... (略) ...
-            }, (err) => {
-                alert("位置情報の取得に失敗しました: " + err.message);
-            }, { enableHighAccuracy: true });
+    <style>
+        body { background: #000; color: #00ff00; font-family: monospace; margin: 0; overflow: hidden; height: 100vh; width: 100vw; }
+        .mode-compass #map-ui, .mode-compass #hud-ui, .mode-compass #info-map { display: none; }
+        .mode-map #compass-full, .mode-map #hud-ui, .mode-map #info-compass { display: none; }
+        .mode-hud #compass-full, .mode-hud #map-ui, .mode-hud #info-compass, .mode-hud #info-map { display: none; }
 
-        } catch (error) {
-            alert("システムエラーが発生しました: " + error.message);
+        #start-screen { position: fixed; inset: 0; background: #000; z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; border: 4px solid #00ff00; box-sizing: border-box; }
+        #menu-btn { position: absolute; top: 15px; left: 15px; font-size: 2rem; z-index: 3000; cursor: pointer; color: #00ff00; }
+        #side-menu { position: fixed; top: 0; left: -260px; width: 250px; height: 100%; background: #111; z-index: 4000; transition: 0.3s; border-right: 1px solid #00ff00; }
+        #side-menu.open { left: 0; }
+        
+        #map { width: 100%; height: 100%; position: absolute; background: #111; }
+        #crosshair { position: absolute; top: 50%; left: 50%; width: 40px; height: 40px; transform: translate(-50%, -50%); pointer-events: none; z-index: 1001; }
+        #crosshair::before { content:''; position:absolute; top:19px; left:0; width:40px; height:2px; background:#ff0000; }
+        #crosshair::after { content:''; position:absolute; top:0; left:19px; width:2px; height:40px; background:#ff0000; }
+
+        .info-panel { position: absolute; top: 10px; right: 10px; z-index: 2000; background: rgba(0,0,0,0.8); padding: 10px; border: 1px solid #00ff00; border-radius: 5px; min-width: 150px; }
+        .val { font-size: 0.95rem; font-weight: bold; display: block; color: #00ff00; }
+        .label { font-size: 0.6rem; color: #888; }
+
+        #compass-full { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; }
+        #face-full { width: 280px; height: 280px; border: 4px solid #00ff00; border-radius: 50%; position: relative; }
+        #needle-fixed { width: 4px; height: 150px; background: #ff0000; position: absolute; left: 50%; top: -10px; transform: translateX(-50%); z-index: 10; }
+
+        #hud-ui { position: relative; width: 100vw; height: 100vh; }
+        #video-feed { position: absolute; width: 100%; height: 100%; object-fit: cover; }
+        #hud-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; }
+        
+        .direction-marker { width: 0; height: 0; border-left: 10px solid transparent; border-right: 10px solid transparent; border-bottom: 20px solid #00ff00; }
+    </style>
+</head>
+<body class="mode-compass">
+
+    <div id="start-screen" onclick="initSystem()">
+        <h1 style="color:#00ff00;">TACTICAL OS v5.8</h1>
+        <p style="color:#00ff00;">TAP ANYWHERE TO START</p>
+    </div>
+
+    <div id="menu-btn" onclick="toggleMenu()">&#9776;</div>
+    <div id="side-menu">
+        <div style="padding:20px; border-bottom:1px solid #333;">MENU</div>
+        <div style="padding:15px;" onclick="switchMode('compass')">＞ COMPASS</div>
+        <div style="padding:15px;" onclick="switchMode('map')">＞ MAP</div>
+        <div style="padding:15px;" onclick="switchMode('hud')">＞ HUD (AR)</div>
+        <div style="padding:15px;" onclick="toggleMenu()">CLOSE</div>
+    </div>
+
+    <div id="info-compass" class="info-panel">
+        <span class="label">SELF MGRS</span><span id="self-mgrs-c" class="val">---</span>
+    </div>
+
+    <div id="info-map" class="info-panel">
+        <span class="label">SELF MGRS</span><span id="self-mgrs-m" class="val">---</span>
+        <span class="label">CENTER MGRS</span><span id="center-mgrs" class="val">---</span>
+        <span class="label">RANGE</span><span id="range-val" class="val" style="color:#ffff00;">0 m</span>
+    </div>
+
+    <div id="compass-full">
+        <div style="position:relative; width:280px; height:280px;">
+            <div id="needle-fixed"></div>
+            <div id="face-full"></div>
+        </div>
+        <div id="mil-display-f" style="font-size:3.5rem; margin-top:40px; font-weight:bold;">0000 MIL</div>
+    </div>
+
+    <div id="map-ui" style="width:100%; height:100%; position:relative;">
+        <div id="crosshair"></div>
+        <div id="map"></div>
+    </div>
+
+    <div id="hud-ui">
+        <video id="video-feed" autoplay playsinline muted></video>
+        <canvas id="hud-canvas"></canvas>
+    </div>
+
+    <script>
+        let map, selfMarker, selfPos = null, currentDeclination = 0, currentTrueHeading = 0;
+        let videoStream = null;
+
+        function toggleMenu() { document.getElementById('side-menu').classList.toggle('open'); }
+
+        function formatMGRS(str) {
+            return str ? str.replace(/(\d{2}[A-Z]{3})(\d{5})(\d{5})/, '$1 $2 $3') : "---";
         }
-    }
-</script>
+
+        async function switchMode(m) {
+            document.body.className = 'mode-' + m;
+            toggleMenu();
+            if (m === 'hud') {
+                try {
+                    videoStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                    document.getElementById('video-feed').srcObject = videoStream;
+                    drawHUD();
+                } catch(e) { alert("Camera failed"); }
+            } else if (videoStream) {
+                videoStream.getTracks().forEach(t => t.stop());
+            }
+            if(m === 'map' && map) {
+                setTimeout(() => map.invalidateSize(), 300);
+            }
+        }
+
+        function drawHUD() {
+            if (document.body.className !== 'mode-hud') return;
+            const canvas = document.getElementById('hud-canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const mil = Math.round(currentTrueHeading * (6400 / 360)).toString().padStart(4, '0');
+            ctx.fillStyle = "#00ff00"; ctx.font = "bold 30px monospace";
+            ctx.fillText(mil + " MIL", canvas.width/2 - 50, canvas.height - 100);
+            requestAnimationFrame(drawHUD);
+        }
+
+        function updateHeading(h) {
+            currentTrueHeading = (h + currentDeclination + 360) % 360;
+            const milVal = Math.round(currentTrueHeading * (6400 / 360)).toString().padStart(4, '0');
+            document.getElementById('face-full').style.transform = `rotate(-${currentTrueHeading}deg)`;
+            document.getElementById('mil-display-f').innerText = milVal + " MIL";
+            if(document.getElementById('self-arrow')) document.getElementById('self-arrow').style.transform = `rotate(${currentTrueHeading}deg)`;
+        }
+
+        async function initSystem() {
+            try {
+                document.getElementById('start-screen').style.display = 'none';
+
+                // センサー許可
+                if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                    const p = await DeviceOrientationEvent.requestPermission();
+                    if (p === 'granted') {
+                        window.addEventListener('deviceorientation', (e) => updateHeading(e.webkitCompassHeading || (e.absolute ? 360 - e.alpha : null)), true);
+                    }
+                } else {
+                    window.addEventListener('deviceorientationabsolute', (e) => updateHeading(360 - e.alpha), true);
+                }
+
+                // 地図初期化
+                map = L.map('map', { zoomControl: false });
+                L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg').addTo(map);
+                const icon = L.divIcon({ className: 'd-marker', html: '<div id="self-arrow" class="direction-marker"></div>', iconSize: [20, 20] });
+                selfMarker = L.marker([0,0], { icon: icon }).addTo(map);
+
+                // 位置情報
+                navigator.geolocation.watchPosition((pos) => {
+                    selfPos = [pos.coords.latitude, pos.coords.longitude];
+                    const m = formatMGRS(mgrs.forward([selfPos[1], selfPos[0]]));
+                    document.getElementById('self-mgrs-c').innerText = m;
+                    document.getElementById('self-mgrs-m').innerText = m;
+                    selfMarker.setLatLng(selfPos);
+                    if(!window.set) { map.setView(selfPos, 17); window.set = true; }
+                    currentDeclination = - ( (selfPos[0] - 37) * 0.2 + (selfPos[1] - 135) * 0.1 + 7.5 );
+                }, (err) => alert("GPS Error"), { enableHighAccuracy: true });
+
+                // 目盛り描画
+                const face = document.getElementById('face-full');
+                for (let i = 0; i < 32; i++) {
+                    const d = document.createElement('div');
+                    d.style.cssText = `position:absolute;width:100%;height:100%;transform:rotate(${i*11.25}deg);`;
+                    const t = document.createElement('div');
+                    t.style.cssText = `width:2px;height:${i%4?15:30}px;background:#00ff00;margin:0 auto;`;
+                    d.appendChild(t); face.appendChild(d);
+                }
+
+            } catch(e) { alert("Init Error: " + e.message); }
+        }
+    </script>
+</body>
+</html>
