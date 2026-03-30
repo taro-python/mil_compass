@@ -30,12 +30,12 @@
 
         .info-panel { 
             position: absolute; top: 10px; right: 10px; z-index: 2000;
-            background: rgba(0,0,0,0.8); padding: 8px; border-radius: 5px; border: 1px solid #00ff00;
-            min-width: 190px;
+            background: rgba(0,0,0,0.85); padding: 8px; border-radius: 5px; border: 1px solid #00ff00;
+            min-width: 200px; box-shadow: 0 0 10px rgba(0,255,0,0.2);
         }
         .val { font-size: 0.95rem; font-weight: bold; display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
         .label { font-size: 0.6rem; color: #888; display: block; margin-bottom: 1px; }
-        .alt-val { font-size: 0.8rem; color: #00ffff; margin-left: 8px; font-weight: normal; }
+        .alt-val { font-size: 0.85rem; color: #00ffff; font-family: 'Courier New', monospace; }
 
         #compass-full { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; }
         #face-full { width: 280px; height: 280px; border: 4px solid #00ff00; border-radius: 50%; position: relative; }
@@ -148,20 +148,30 @@
             if(arrow) arrow.style.transform = `rotate(${trueH}deg)`;
         }
 
-        // --- 標高取得関数 (HTTPS & デバウンス対応) ---
+        // --- 標高取得関数 (エラー表示強化) ---
         async function fetchElevation(lat, lon, elementId) {
+            const el = document.getElementById(elementId);
             try {
+                // ブラウザの制限を回避するため、出力をJSON形式に変更し、可能な限り軽量に
                 const url = `https://cyberjapandata2.gsi.go.jp/elevation/cgi/elevation.php?n=${lat.toFixed(6)}&e=${lon.toFixed(6)}&outtype=JSON`;
+                
                 const res = await fetch(url);
+                if (!res.ok) throw new Error('Network Error');
+                
                 const data = await res.json();
-                const elevation = data.elevation;
-                document.getElementById(elementId).innerText = (elevation !== "-----") ? Math.round(elevation) + "m" : "---m";
+                const h = data.elevation;
+
+                if (h !== undefined && h !== "-----") {
+                    el.innerText = Math.round(h) + "m";
+                } else {
+                    el.innerText = "OUT"; // 日本国外など
+                }
             } catch (err) {
-                console.error("Elevation API Error:", err);
+                console.error("Alt Error:", err);
+                el.innerText = "OFFLINE"; 
             }
         }
 
-        // --- 方位角計算 (MIL単位) ---
         function getMilBearing(p1, p2) {
             const lat1 = p1[0] * Math.PI / 180, lon1 = p1[1] * Math.PI / 180;
             const lat2 = p2[0] * Math.PI / 180, lon2 = p2[1] * Math.PI / 180;
@@ -196,7 +206,6 @@
                 const center = map.getCenter();
                 const cPos = [center.lat, center.lng];
                 
-                // 座標・距離・方位の更新
                 document.getElementById('center-mgrs').innerText = mgrs.forward([center.lng, center.lat]);
                 if(selfPos) {
                     const dist = L.latLng(selfPos).distanceTo(center);
@@ -204,11 +213,13 @@
                     document.getElementById('bearing-val').innerText = `${getMilBearing(selfPos, cPos)} MIL`;
                 }
 
-                // 高度取得（負荷軽減のため0.5秒停止後に実行）
+                // 標高を「取得中...」にする
+                document.getElementById('center-alt').innerText = "...";
+                
                 clearTimeout(altTimeout);
                 altTimeout = setTimeout(() => {
                     fetchElevation(center.lat, center.lng, 'center-alt');
-                }, 500);
+                }, 600);
             });
 
             navigator.geolocation.watchPosition((pos) => {
@@ -219,7 +230,6 @@
                 document.getElementById('self-mgrs-c').innerText = mCode;
                 document.getElementById('self-mgrs-m').innerText = mCode;
                 
-                // 自己位置の標高取得
                 fetchElevation(lat, lon, 'self-alt');
                 
                 if (!window.initialSet) { map.setView(selfPos, 17); window.initialSet = true; }
