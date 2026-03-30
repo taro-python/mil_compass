@@ -202,35 +202,38 @@
         let savedPlots = JSON.parse(localStorage.getItem('tactical_plots') || '[]');
         let markersOnMap = [];
 
-        function drawTicks(el, isMini) {
-            for (let i = 0; i < 32; i++) {
-                const d = document.createElement('div');
-                d.style.cssText = `position:absolute;width:100%;height:100%;transform:rotate(${i*11.25}deg);`;
-                const t = document.createElement('div');
-                t.style.cssText = `width:${isMini?1:2}px;height:${i%4?(isMini?5:15):(isMini?10:30)}px;background:#00ff00;margin:0 auto;`;
-                d.appendChild(t); el.appendChild(d);
-            }
-        }
-        drawTicks(faceFull, false); drawTicks(faceMini, true);
+/* --- 修正版: JSONP方式による標高取得 --- */
+function fetchElevation(lat, lon, elementId) {
+    const el = document.getElementById(elementId);
+    if (!lat || !lon) return;
 
-        function toggleMenu() { document.getElementById('side-menu').classList.toggle('open'); }
-        function switchMode(m) { 
-            document.body.className = 'mode-' + m; 
-            if(m==='map' && map) setTimeout(() => { map.invalidateSize(); if(selfPos) map.setView(selfPos, 17); }, 300);
-            if(document.getElementById('side-menu').classList.contains('open')) toggleMenu(); 
-        }
+    // 前のJSONPスクリプトがあれば削除
+    const oldScript = document.getElementById('temp-gsi-script');
+    if (oldScript) oldScript.remove();
 
-        function updateHeading(h) {
-            if (h === null || h === undefined) return;
-            const trueH = (h + currentDeclination + 360) % 360;
-            const milVal = Math.round(trueH * (6400 / 360)).toString().padStart(4, '0');
-            faceFull.style.transform = `rotate(-${trueH}deg)`;
-            faceMini.style.transform = `rotate(-${trueH}deg)`;
-            document.getElementById('mil-display-f').innerText = milVal + " MIL";
-            document.getElementById('mini-val').innerText = milVal;
-            const arrow = document.getElementById('self-arrow');
-            if(arrow) arrow.style.transform = `rotate(${trueH}deg)`;
+    // コールバック関数の定義（APIからの応答を受け取る）
+    window.gsiCallback = function(data) {
+        const h = data.elevation;
+        if (h !== undefined && h !== "-----") {
+            el.innerText = Math.round(h) + "m";
+            el.style.color = "#00ffff";
+        } else {
+            el.innerText = "OUT";
         }
+    };
+
+    // JSONPリクエスト用スクリプトの生成
+    const script = document.createElement('script');
+    script.id = 'temp-gsi-script';
+    // outtype=JSONP と callback=gsiCallback を指定するのがコツです
+    script.src = `https://cyberjapandata2.gsi.go.jp/elevation/cgi/elevation.php?n=${lat.toFixed(6)}&e=${lon.toFixed(6)}&outtype=JSONP&callback=gsiCallback`;
+    
+    script.onerror = () => {
+        el.innerText = "OFFLINE";
+    };
+
+    document.body.appendChild(script);
+}
 
         /* --- Improved Elevation Logic --- */
         async function fetchElevation(lat, lon, elementId) {
