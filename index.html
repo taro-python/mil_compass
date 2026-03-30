@@ -31,11 +31,11 @@
         .info-panel { 
             position: absolute; top: 10px; right: 10px; z-index: 2000;
             background: rgba(0,0,0,0.8); padding: 8px; border-radius: 5px; border: 1px solid #00ff00;
-            min-width: 180px;
+            min-width: 190px;
         }
-        .val { font-size: 0.95rem; font-weight: bold; display: block; margin-bottom: 4px; white-space: nowrap; }
+        .val { font-size: 0.95rem; font-weight: bold; display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
         .label { font-size: 0.6rem; color: #888; display: block; margin-bottom: 1px; }
-        .alt-val { font-size: 0.75rem; color: #00ffff; margin-left: 5px; }
+        .alt-val { font-size: 0.8rem; color: #00ffff; margin-left: 8px; font-weight: normal; }
 
         #compass-full { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; }
         #face-full { width: 280px; height: 280px; border: 4px solid #00ff00; border-radius: 50%; position: relative; }
@@ -74,15 +74,21 @@
 
     <div id="info-map" class="info-panel">
         <span class="label">SELF MGRS / ALT</span>
-        <div class="val"><span id="self-mgrs-m">---</span><span id="self-alt" class="alt-val">0m</span></div>
+        <div class="val">
+            <span id="self-mgrs-m">---</span>
+            <span id="self-alt" class="alt-val">---m</span>
+        </div>
         
         <span class="label">CENTER MGRS / ALT</span>
-        <div class="val"><span id="center-mgrs">---</span><span id="center-alt" class="alt-val">0m</span></div>
+        <div class="val">
+            <span id="center-mgrs">---</span>
+            <span id="center-alt" class="alt-val">---m</span>
+        </div>
         
         <span class="label">RANGE / BRG</span>
         <div class="val">
             <span id="range-val" style="color:#ffff00;">0 m</span>
-            <span id="bearing-val" style="color:#00ff00; margin-left:12px;">0000 MIL</span>
+            <span id="bearing-val" style="color:#00ff00;">0000 MIL</span>
         </div>
     </div>
 
@@ -108,6 +114,7 @@
 
     <script>
         let map, selfMarker, selfPos = null, currentDeclination = 0;
+        let altTimeout;
         const faceFull = document.getElementById('face-full');
         const faceMini = document.getElementById('mini-face');
 
@@ -141,17 +148,20 @@
             if(arrow) arrow.style.transform = `rotate(${trueH}deg)`;
         }
 
-        // 標高取得関数
-        async function getAlt(lat, lon, targetId) {
+        // --- 標高取得関数 (HTTPS & デバウンス対応) ---
+        async function fetchElevation(lat, lon, elementId) {
             try {
-                const res = await fetch(`https://cyberjapandata2.gsi.go.jp/elevation/cgi/elevation.php?n=${lat}&e=${lon}&outtype=JSON`);
+                const url = `https://cyberjapandata2.gsi.go.jp/elevation/cgi/elevation.php?n=${lat.toFixed(6)}&e=${lon.toFixed(6)}&outtype=JSON`;
+                const res = await fetch(url);
                 const data = await res.json();
-                const ele = data.elevation !== "-----" ? Math.round(data.elevation) : "---";
-                document.getElementById(targetId).innerText = ele + "m";
-            } catch (e) { document.getElementById(targetId).innerText = "---m"; }
+                const elevation = data.elevation;
+                document.getElementById(elementId).innerText = (elevation !== "-----") ? Math.round(elevation) + "m" : "---m";
+            } catch (err) {
+                console.error("Elevation API Error:", err);
+            }
         }
 
-        // 方位角計算 (MIL単位)
+        // --- 方位角計算 (MIL単位) ---
         function getMilBearing(p1, p2) {
             const lat1 = p1[0] * Math.PI / 180, lon1 = p1[1] * Math.PI / 180;
             const lat2 = p2[0] * Math.PI / 180, lon2 = p2[1] * Math.PI / 180;
@@ -185,22 +195,33 @@
             map.on('move', () => {
                 const center = map.getCenter();
                 const cPos = [center.lat, center.lng];
+                
+                // 座標・距離・方位の更新
+                document.getElementById('center-mgrs').innerText = mgrs.forward([center.lng, center.lat]);
                 if(selfPos) {
                     const dist = L.latLng(selfPos).distanceTo(center);
                     document.getElementById('range-val').innerText = `${Math.round(dist)} m`;
                     document.getElementById('bearing-val').innerText = `${getMilBearing(selfPos, cPos)} MIL`;
                 }
-                document.getElementById('center-mgrs').innerText = mgrs.forward([center.lng, center.lat]);
-                getAlt(center.lat, center.lng, 'center-alt');
+
+                // 高度取得（負荷軽減のため0.5秒停止後に実行）
+                clearTimeout(altTimeout);
+                altTimeout = setTimeout(() => {
+                    fetchElevation(center.lat, center.lng, 'center-alt');
+                }, 500);
             });
 
             navigator.geolocation.watchPosition((pos) => {
                 const lat = pos.coords.latitude, lon = pos.coords.longitude;
                 selfPos = [lat, lon];
                 const mCode = mgrs.forward([lon, lat]);
+                
                 document.getElementById('self-mgrs-c').innerText = mCode;
                 document.getElementById('self-mgrs-m').innerText = mCode;
-                getAlt(lat, lon, 'self-alt');
+                
+                // 自己位置の標高取得
+                fetchElevation(lat, lon, 'self-alt');
+                
                 if (!window.initialSet) { map.setView(selfPos, 17); window.initialSet = true; }
                 selfMarker.setLatLng(selfPos);
                 currentDeclination = - ( (lat - 37) * 0.2 + (lon - 135) * 0.1 + 7.5 );
