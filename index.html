@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>TACTICAL OS v5.4 JP (Final)</title>
+    <title>TACTICAL OS v5.4 Lite (JP)</title>
     
     <script src="https://cdn.jsdelivr.net/npm/mgrs@1.0.0/dist/mgrs.min.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -36,7 +36,6 @@
         }
         .val { font-size: 0.95rem; font-weight: bold; display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
         .label { font-size: 0.65rem; color: #888; display: block; margin-bottom: 1px; font-weight: bold; }
-        .alt-val { font-size: 0.85rem; color: #00ffff; font-family: monospace; }
 
         #compass-full { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; }
         #face-full { width: 280px; height: 280px; border: 4px solid #00ff00; border-radius: 50%; position: relative; }
@@ -53,7 +52,6 @@
         #map { width: 100%; height: 100%; position: absolute; background: #111; }
         #start-screen { position: fixed; inset: 0; background: #000; z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
 
-        /* --- 拡張ボタン・パネル --- */
         .t-btn {
             position: absolute; z-index: 3000; display: none;
             background: rgba(0, 20, 0, 0.85); color: #00ff00;
@@ -88,7 +86,7 @@
 <body class="mode-compass">
 
     <div id="start-screen" onclick="initSystem()">
-        <h2 style="color:#00ff00; letter-spacing: 4px;">TACTICAL OS v5.4</h2>
+        <h2 style="color:#00ff00; letter-spacing: 4px;">TACTICAL OS LITE</h2>
         <p style="color:#00ff00; animation: blink 1.5s infinite;">画面をタップしてシステム起動</p>
     </div>
 
@@ -106,16 +104,10 @@
     </div>
 
     <div id="info-map" class="info-panel">
-        <span class="label">現在地 MGRS / 標高</span>
-        <div class="val">
-            <span id="self-mgrs-m">---</span>
-            <span id="self-alt" class="alt-val">取得中...</span>
-        </div>
-        <span class="label">中心点 MGRS / 標高</span>
-        <div class="val">
-            <span id="center-mgrs">---</span>
-            <span id="center-alt" class="alt-val">取得中...</span>
-        </div>
+        <span class="label">現在地 MGRS</span>
+        <div class="val"><span id="self-mgrs-m">---</span></div>
+        <span class="label">中心点 MGRS</span>
+        <div class="val"><span id="center-mgrs">---</span></div>
         <span class="label">距離 / 方位 (中心点まで)</span>
         <div class="val">
             <span id="range-val" style="color:#ffff00;">0 m</span>
@@ -177,8 +169,8 @@
     </div>
 
     <script>
-        /* --- ロジック --- */
-        let map, selfMarker, selfPos = null, currentDeclination = 0, altTimeout;
+        /* --- ロジック (標高機能なし) --- */
+        let map, selfMarker, selfPos = null, currentDeclination = 0;
         const faceFull = document.getElementById('face-full'), faceMini = document.getElementById('mini-face');
         let savedPlots = JSON.parse(localStorage.getItem('tactical_plots') || '[]');
         let markersOnMap = [];
@@ -211,14 +203,6 @@
             document.getElementById('mini-val').innerText = milVal;
             const arrow = document.getElementById('self-arrow');
             if(arrow) arrow.style.transform = `rotate(${trueH}deg)`;
-        }
-
-        /* --- 標高機能の呼び出し (本体側) --- */
-        function fetchElevation(lat, lon, elementId) {
-            // 外部ファイル elevation.js の機能が存在するかチェックして実行
-            if (window.GSI && typeof GSI.getAlt === 'function') {
-                GSI.getAlt(lat, lon, elementId);
-            }
         }
 
         function getMilBearing(p1, p2) {
@@ -301,16 +285,12 @@
                     document.getElementById('range-val').innerText = `${Math.round(L.latLng(selfPos).distanceTo(c))} m`;
                     document.getElementById('bearing-val').innerText = `${getMilBearing(selfPos, [c.lat, c.lng])} MIL`;
                 }
-                document.getElementById('center-alt').innerText = "...";
-                clearTimeout(altTimeout);
-                altTimeout = setTimeout(() => fetchElevation(c.lat, c.lng, 'center-alt'), 600);
             });
 
             navigator.geolocation.watchPosition((pos) => {
                 const lat = pos.coords.latitude, lon = pos.coords.longitude; selfPos = [lat, lon];
                 const m = mgrs.forward([lon, lat]);
                 document.getElementById('self-mgrs-c').innerText = m; document.getElementById('self-mgrs-m').innerText = m;
-                fetchElevation(lat, lon, 'self-alt');
                 if (!window.initialSet) { map.setView(selfPos, 17); window.initialSet = true; }
                 selfMarker.setLatLng(selfPos);
                 currentDeclination = - ( (lat - 37) * 0.2 + (lon - 135) * 0.1 + 7.5 );
@@ -329,7 +309,5 @@
         window.deletePlot = (i) => { savedPlots.splice(i, 1); localStorage.setItem('tactical_plots', JSON.stringify(savedPlots)); restorePlots(); document.getElementById('list-btn').onclick(); };
         document.getElementById('p2p-from').onchange = calculateP2P; document.getElementById('p2p-to').onchange = calculateP2P;
     </script>
-
-    <script src="elevation.js"></script>
 </body>
 </html>
