@@ -3,13 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Tactical OS v5.4</title>
+    <title>Tactical OS v5.4 + Ext v2.0</title>
     
     <script src="https://cdn.jsdelivr.net/npm/mgrs@1.0.0/dist/mgrs.min.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <style>
+        /* --- Base System Styles --- */
         body { background: #000; color: #00ff00; font-family: monospace; margin: 0; overflow: hidden; height: 100vh; width: 100vw; }
         .mode-compass #map-ui, .mode-compass #info-map { display: none; }
         .mode-map #compass-full, .mode-map #info-compass { display: none; }
@@ -46,45 +47,92 @@
             border-bottom: 20px solid #00ff00; filter: drop-shadow(0 0 5px #00ff00);
         }
 
-        #menu-btn { position: absolute; top: 15px; left: 15px; font-size: 2rem; z-index: 3000; cursor: pointer; color: #00ff00; }
+        #menu-btn { position: absolute; top: 15px; left: 15px; font-size: 2rem; z-index: 3500; cursor: pointer; color: #00ff00; }
         #side-menu { position: fixed; top: 0; left: -260px; width: 250px; height: 100%; background: #111; z-index: 4000; transition: 0.3s; border-right: 1px solid #00ff00; }
         #side-menu.open { left: 0; }
         #map { width: 100%; height: 100%; position: absolute; background: #111; }
         #start-screen { position: fixed; inset: 0; background: #000; z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+
+        /* --- Extension Pack Styles --- */
+        .t-btn {
+            position: absolute; z-index: 3000; display: none;
+            background: rgba(0, 20, 0, 0.85); color: #00ff00;
+            border: 1px solid #00ff00; font-family: 'Courier New', monospace;
+            font-weight: bold; font-size: 11px; cursor: pointer;
+            padding: 10px 5px; text-transform: uppercase;
+            letter-spacing: 1px; width: 90px; text-align: center;
+            box-shadow: 0 0 10px rgba(0, 255, 0, 0.2);
+        }
+        .t-btn:active { background: #00ff00; color: #000; }
+        .mode-map .t-btn { display: block; }
+
+        #list-btn  { bottom: 65px;  right: 15px; }                   
+        #input-btn { bottom: 120px; right: 15px; }                   
+        #plot-btn  { bottom: 175px; right: 15px; border-width: 2px; } 
+
+        .ext-panel {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 85%; max-width: 350px; max-height: 80vh;
+            background: #050a05; border: 1px solid #00ff00;
+            z-index: 5000; display: none; flex-direction: column; padding: 20px;
+            box-shadow: 0 0 30px rgba(0, 255, 0, 0.3); color: #00ff00;
+        }
+        .ext-input, .p2p-select { 
+            background: #000; color: #00ff00; border: 1px solid #004400; 
+            width: 100%; padding: 12px; margin: 10px 0; font-family: monospace; outline: none; box-sizing: border-box;
+        }
+        .result-box {
+            background: rgba(0, 30, 0, 0.9); border: 1px solid #00ff00;
+            padding: 15px; margin-top: 10px; font-family: 'Courier New', monospace;
+        }
+        .result-line { display: flex; justify-content: space-between; margin-bottom: 5px; }
+        .result-val { color: #ffff00; font-weight: bold; }
+
+        .custom-menu-item {
+            cursor: pointer; padding: 15px; border-bottom: 1px solid #003300;
+            color: #00ff00; font-family: 'Courier New', monospace; font-size: 13px;
+            text-align: left; background: none; width: 100%; box-sizing: border-box;
+        }
+        .custom-menu-item:hover { background: rgba(0, 255, 0, 0.2); }
+
+        .custom-marker-html {
+            display: flex; align-items: center; justify-content: center;
+            color: #ff0000; font-size: 22px; font-weight: bold; text-shadow: 0 0 4px #000;
+        }
+        .leaflet-popup-content-wrapper { background: #000 !important; color: #00ff00 !important; border: 1px solid #00ff00; border-radius: 0; }
+        .leaflet-popup-tip { background: #00ff00 !important; }
     </style>
 </head>
 <body class="mode-compass">
 
     <div id="start-screen" onclick="initSystem()">
-        <h2 style="color:#00ff00;">TACTICAL OS v5.4</h2>
-        <p style="color:#00ff00;">TAP TO START</p>
+        <h2 style="color:#00ff00; letter-spacing: 4px;">TACTICAL OS v5.4</h2>
+        <p style="color:#00ff00; animation: blink 1.5s infinite;">TAP TO INITIALIZE SYSTEM</p>
     </div>
 
     <div id="menu-btn" onclick="toggleMenu()">&#9776;</div>
     <div id="side-menu">
-        <div style="padding:20px; border-bottom:1px solid #333;">TACTICAL MENU</div>
-        <div style="padding:15px;" onclick="switchMode('compass')">＞ COMPASS MODE</div>
-        <div style="padding:15px;" onclick="switchMode('map')">＞ MAP MODE</div>
-        <div style="padding:15px;" onclick="toggleMenu()">CLOSE</div>
+        <div style="padding:20px; border-bottom:1px solid #333; font-weight:bold;">TACTICAL MENU</div>
+        <div class="custom-menu-item" onclick="switchMode('compass')">＞ COMPASS MODE</div>
+        <div class="custom-menu-item" onclick="switchMode('map')">＞ MAP MODE</div>
+        <div id="menu-ext-area"></div> <div class="custom-menu-item" onclick="toggleMenu()">CLOSE</div>
     </div>
 
     <div id="info-compass" class="info-panel">
-        <span class="label">SELF MGRS</span><span id="self-mgrs-c" class="val">WAITING...</span>
+        <span class="label">SELF MGRS</span><span id="self-mgrs-c" class="val">GPS WAITING...</span>
     </div>
 
     <div id="info-map" class="info-panel">
         <span class="label">SELF MGRS / ALT</span>
         <div class="val">
             <span id="self-mgrs-m">---</span>
-            <span id="self-alt" class="alt-val">---m</span>
+            <span id="self-alt" class="alt-val">WAIT...</span>
         </div>
-        
         <span class="label">CENTER MGRS / ALT</span>
         <div class="val">
             <span id="center-mgrs">---</span>
-            <span id="center-alt" class="alt-val">---m</span>
+            <span id="center-alt" class="alt-val">WAIT...</span>
         </div>
-        
         <span class="label">RANGE / BRG</span>
         <div class="val">
             <span id="range-val" style="color:#ffff00;">0 m</span>
@@ -110,13 +158,49 @@
             </div>
             <div id="mini-val">0000</div>
         </div>
+
+        <div id="plot-btn" class="t-btn">MARK<br>CENTER</div>
+        <div id="input-btn" class="t-btn">MANUAL<br>INPUT</div>
+        <div id="list-btn" class="t-btn">LOG<br>LIST</div>
+    </div>
+
+    <div id="input-panel" class="ext-panel">
+        <div style="font-size:14px; margin-bottom:15px; border-bottom:1px solid #00ff00; padding-bottom:5px;">MANUAL PLOT</div>
+        <input type="text" id="m-name" class="ext-input" placeholder="OBJECTIVE NAME">
+        <input type="text" id="m-coord" class="ext-input" placeholder="MGRS COORD (e.g. 54SUE...)">
+        <div style="display:flex; gap:10px;">
+            <button class="t-btn" style="position:static; flex:1; width:auto; background:#004400;" onclick="execManualPlot()">PLOT</button>
+            <button class="t-btn" style="position:static; flex:1; width:auto; border-color:#444;" onclick="closePanel('input-panel')">ABORT</button>
+        </div>
+    </div>
+
+    <div id="plot-list-panel" class="ext-panel">
+        <div style="font-size:14px; margin-bottom:15px; border-bottom:1px solid #00ff00; padding-bottom:5px;">TACTICAL LOG</div>
+        <div id="plot-list-content" style="overflow-y:auto; flex-grow:1; max-height:50vh;"></div>
+        <button class="t-btn" style="position:static; width:100%; margin-top:15px;" onclick="closePanel('plot-list-panel')">RETURN</button>
+    </div>
+
+    <div id="p2p-calc-panel" class="ext-panel">
+        <div style="font-size:14px; margin-bottom:15px; border-bottom:1px solid #00ff00; padding-bottom:5px;">P2P NAV CALCULATOR</div>
+        <label style="font-size:10px;">FROM (START)</label>
+        <select id="p2p-from" class="p2p-select"></select>
+        <label style="font-size:10px;">TO (TARGET)</label>
+        <select id="p2p-to" class="p2p-select"></select>
+        <div class="result-box">
+            <div class="result-line"><span>DISTANCE:</span> <span id="res-dist" class="result-val">---</span></div>
+            <div class="result-line"><span>AZIMUTH:</span> <span id="res-azimuth" class="result-val">---</span></div>
+        </div>
+        <button class="t-btn" style="position:static; width:100%; margin-top:15px;" onclick="closePanel('p2p-calc-panel')">CLOSE</button>
     </div>
 
     <script>
+        /* --- CORE LOGIC --- */
         let map, selfMarker, selfPos = null, currentDeclination = 0;
         let altTimeout;
         const faceFull = document.getElementById('face-full');
         const faceMini = document.getElementById('mini-face');
+        let savedPlots = JSON.parse(localStorage.getItem('tactical_plots') || '[]');
+        let markersOnMap = [];
 
         function drawTicks(el, isMini) {
             for (let i = 0; i < 32; i++) {
@@ -133,7 +217,7 @@
         function switchMode(m) { 
             document.body.className = 'mode-' + m; 
             if(m==='map' && map) setTimeout(() => { map.invalidateSize(); if(selfPos) map.setView(selfPos, 17); }, 300);
-            toggleMenu(); 
+            if(document.getElementById('side-menu').classList.contains('open')) toggleMenu(); 
         }
 
         function updateHeading(h) {
@@ -148,27 +232,30 @@
             if(arrow) arrow.style.transform = `rotate(${trueH}deg)`;
         }
 
-        // --- 標高取得関数 (エラー表示強化) ---
+        /* --- Improved Elevation Logic --- */
         async function fetchElevation(lat, lon, elementId) {
             const el = document.getElementById(elementId);
+            if (!lat || !lon) return;
+
             try {
-                // ブラウザの制限を回避するため、出力をJSON形式に変更し、可能な限り軽量に
+                // 標高取得API呼び出し (CORS対策としてfetchを使用、失敗時はERR表示)
                 const url = `https://cyberjapandata2.gsi.go.jp/elevation/cgi/elevation.php?n=${lat.toFixed(6)}&e=${lon.toFixed(6)}&outtype=JSON`;
                 
-                const res = await fetch(url);
-                if (!res.ok) throw new Error('Network Error');
+                const response = await fetch(url);
+                if (!response.ok) throw new Error("API_REACH_FAILURE");
                 
-                const data = await res.json();
+                const data = await response.json();
                 const h = data.elevation;
 
                 if (h !== undefined && h !== "-----") {
                     el.innerText = Math.round(h) + "m";
+                    el.style.color = "#00ffff"; 
                 } else {
-                    el.innerText = "OUT"; // 日本国外など
+                    el.innerText = "OUT"; 
                 }
             } catch (err) {
-                console.error("Alt Error:", err);
-                el.innerText = "OFFLINE"; 
+                console.warn("Elevation fetch failed:", err);
+                el.innerText = "OFFLINE";
             }
         }
 
@@ -182,8 +269,65 @@
             return Math.round(brg * (6400 / 360)).toString().padStart(4, '0');
         }
 
+        /* --- Extension Logic --- */
+        window.closePanel = (id) => document.getElementById(id).style.display = 'none';
+
+        function addMarkerToMap(p) {
+            const icon = L.divIcon({ className: 'custom-marker-html', html: `<div>●</div>`, iconSize: [30, 30] });
+            const marker = L.marker([p.lat, p.lng], {icon: icon}).addTo(map);
+            marker.bindPopup(`<b>${p.name}</b><br>MGRS: ${p.mgrs}<br>RNG: ${p.dist}`);
+            markersOnMap.push(marker);
+        }
+
+        function restorePlots() {
+            markersOnMap.forEach(m => map.removeLayer(m));
+            markersOnMap = [];
+            savedPlots.forEach(p => addMarkerToMap(p));
+        }
+
+        function saveAndPlot(lat, lng, mgrsCoord, name) {
+            let dStr = "---";
+            if (selfPos) {
+                dStr = `${Math.round(L.latLng(selfPos).distanceTo([lat, lng]))}m`;
+            }
+            const newPlot = { lat, lng, mgrs: mgrsCoord, name, dist: dStr };
+            savedPlots.push(newPlot);
+            localStorage.setItem('tactical_plots', JSON.stringify(savedPlots));
+            addMarkerToMap(newPlot);
+        }
+
+        window.execManualPlot = () => {
+            const name = document.getElementById('m-name').value || "MANUAL-PT";
+            const coord = document.getElementById('m-coord').value.trim();
+            try {
+                const decoded = mgrs.toPoint(coord);
+                saveAndPlot(decoded[1], decoded[0], coord, name);
+                closePanel('input-panel');
+                map.setView([decoded[1], decoded[0]], 17);
+            } catch(e) { alert("INVALID MGRS"); }
+        };
+
+        function calculateP2P() {
+            const fromIdx = document.getElementById('p2p-from').value;
+            const toIdx = document.getElementById('p2p-to').value;
+            if (fromIdx === "" || toIdx === "" || fromIdx === toIdx) return;
+
+            const p1 = L.latLng(savedPlots[fromIdx].lat, savedPlots[fromIdx].lng);
+            const p2 = L.latLng(savedPlots[toIdx].lat, savedPlots[toIdx].lng);
+            
+            const dist = p1.distanceTo(p2);
+            let angle = (Math.atan2(p2.lng - p1.lng, p2.lat - p1.lat) * 180 / Math.PI);
+            if (angle < 0) angle += 360;
+
+            document.getElementById('res-dist').innerText = dist > 1000 ? (dist/1000).toFixed(2) + " km" : Math.round(dist) + " m";
+            document.getElementById('res-azimuth').innerText = `${Math.round(angle)}° (${Math.round(angle * 17.7777).toString().padStart(4, '0')} MIL)`;
+        }
+
+        /* --- System Initialization --- */
         async function initSystem() {
             document.getElementById('start-screen').style.display = 'none';
+            
+            // Compass Permission
             if (window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission === 'function') {
                 const response = await DeviceOrientationEvent.requestPermission();
                 if (response === 'granted') {
@@ -196,32 +340,49 @@
                 window.addEventListener('deviceorientationabsolute', (e) => updateHeading(360 - e.alpha), true);
             }
 
-            map = L.map('map', { zoomControl: false });
+            // Map Init
+            map = L.map('map', { zoomControl: false, attributionControl: false });
             L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg', { maxZoom: 18 }).addTo(map);
 
             const arrowIcon = L.divIcon({ className: 'd-marker', html: '<div id="self-arrow" class="direction-marker"></div>', iconSize: [20, 20], iconAnchor: [10, 10] });
             selfMarker = L.marker([0,0], { icon: arrowIcon }).addTo(map);
 
+            // Restore Data
+            restorePlots();
+
+            // P2P Trigger Menu
+            const menuExt = document.getElementById('menu-ext-area');
+            const p2pEntry = document.createElement('div');
+            p2pEntry.className = 'custom-menu-item';
+            p2pEntry.innerHTML = '＞ P2P NAV CALCULATOR';
+            p2pEntry.onclick = () => {
+                const options = savedPlots.map((p, i) => `<option value="${i}">${p.name}</option>`).join('');
+                document.getElementById('p2p-from').innerHTML = options;
+                document.getElementById('p2p-to').innerHTML = options;
+                document.getElementById('p2p-calc-panel').style.display = 'flex';
+                toggleMenu();
+            };
+            menuExt.appendChild(p2pEntry);
+
+            // Map Events
             map.on('move', () => {
                 const center = map.getCenter();
                 const cPos = [center.lat, center.lng];
+                const mCode = mgrs.forward([center.lng, center.lat]);
+                document.getElementById('center-mgrs').innerText = mCode;
                 
-                document.getElementById('center-mgrs').innerText = mgrs.forward([center.lng, center.lat]);
                 if(selfPos) {
                     const dist = L.latLng(selfPos).distanceTo(center);
                     document.getElementById('range-val').innerText = `${Math.round(dist)} m`;
                     document.getElementById('bearing-val').innerText = `${getMilBearing(selfPos, cPos)} MIL`;
                 }
 
-                // 標高を「取得中...」にする
                 document.getElementById('center-alt').innerText = "...";
-                
                 clearTimeout(altTimeout);
-                altTimeout = setTimeout(() => {
-                    fetchElevation(center.lat, center.lng, 'center-alt');
-                }, 600);
+                altTimeout = setTimeout(() => fetchElevation(center.lat, center.lng, 'center-alt'), 600);
             });
 
+            // Geolocation
             navigator.geolocation.watchPosition((pos) => {
                 const lat = pos.coords.latitude, lon = pos.coords.longitude;
                 selfPos = [lat, lon];
@@ -235,9 +396,37 @@
                 if (!window.initialSet) { map.setView(selfPos, 17); window.initialSet = true; }
                 selfMarker.setLatLng(selfPos);
                 currentDeclination = - ( (lat - 37) * 0.2 + (lon - 135) * 0.1 + 7.5 );
-            }, null, { enableHighAccuracy: true });
+            }, (err) => console.error("GPS Error:", err), { enableHighAccuracy: true });
         }
+
+        /* UI Bindings */
+        document.getElementById('plot-btn').onclick = () => {
+            const name = prompt("IDENTIFIER:", "PT-" + (savedPlots.length + 1));
+            if (!name) return;
+            const center = map.getCenter();
+            const mCode = mgrs.forward([center.lng, center.lat]);
+            saveAndPlot(center.lat, center.lng, mCode, name);
+        };
+        document.getElementById('input-btn').onclick = () => document.getElementById('input-panel').style.display = 'flex';
+        document.getElementById('list-btn').onclick = () => {
+            const container = document.getElementById('plot-list-content');
+            container.innerHTML = savedPlots.map((p, i) => `
+                <div style="border-bottom:1px solid #002200; padding:10px 0; display:flex; justify-content:space-between; align-items:center;">
+                    <div style="font-size:11px;"><b>${p.name}</b> (${p.dist})<br><span style="color:#888;">${p.mgrs}</span></div>
+                    <button onclick="deletePlot(${i})" style="background:none; border:1px solid #440000; color:#ff0000; cursor:pointer; padding:5px;">DEL</button>
+                </div>
+            `).join('');
+            document.getElementById('plot-list-panel').style.display = 'flex';
+        };
+        window.deletePlot = (i) => {
+            savedPlots.splice(i, 1);
+            localStorage.setItem('tactical_plots', JSON.stringify(savedPlots));
+            restorePlots();
+            document.getElementById('list-btn').onclick(); // Refresh list
+        };
+        document.getElementById('p2p-from').onchange = calculateP2P;
+        document.getElementById('p2p-to').onchange = calculateP2P;
+
     </script>
-    <script src="extension.js"></script>
 </body>
 </html>
