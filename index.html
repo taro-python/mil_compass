@@ -46,7 +46,14 @@
             border-bottom: 20px solid #00ff00; filter: drop-shadow(0 0 5px #00ff00);
         }
 
-        #menu-btn { position: absolute; top: 15px; left: 15px; font-size: 2rem; z-index: 3500; cursor: pointer; color: #00ff00; }
+        #menu-btn { position: absolute; top: 15px; left: 15px; font-size: 2rem; z-index: 4500; cursor: pointer; color: #00ff00; }
+        
+        /* メニュー外タップ用のオーバーレイ */
+        #menu-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.4);
+            z-index: 3900; display: none;
+        }
+
         #side-menu { position: fixed; top: 0; left: -260px; width: 250px; height: 100%; background: #111; z-index: 4000; transition: 0.3s; border-right: 1px solid #00ff00; }
         #side-menu.open { left: 0; }
         #map { width: 100%; height: 100%; position: absolute; background: #111; }
@@ -89,6 +96,8 @@
         <h2 style="color:#00ff00; letter-spacing: 4px;">TACTICAL OS LITE</h2>
         <p style="color:#00ff00; animation: blink 1.5s infinite;">画面をタップしてシステム起動</p>
     </div>
+
+    <div id="menu-overlay" onclick="toggleMenu()"></div>
 
     <div id="menu-btn" onclick="toggleMenu()">&#9776;</div>
     <div id="side-menu">
@@ -169,7 +178,6 @@
     </div>
 
     <script>
-        /* --- ロジック (標高機能なし) --- */
         let map, selfMarker, selfPos = null, currentDeclination = 0;
         const faceFull = document.getElementById('face-full'), faceMini = document.getElementById('mini-face');
         let savedPlots = JSON.parse(localStorage.getItem('tactical_plots') || '[]');
@@ -186,11 +194,18 @@
         }
         drawTicks(faceFull, false); drawTicks(faceMini, true);
 
-        function toggleMenu() { document.getElementById('side-menu').classList.toggle('open'); }
+        // メニュー開閉とオーバーレイの制御
+        function toggleMenu() { 
+            const menu = document.getElementById('side-menu');
+            const overlay = document.getElementById('menu-overlay');
+            const isOpen = menu.classList.toggle('open');
+            overlay.style.display = isOpen ? 'block' : 'none';
+        }
+
         function switchMode(m) { 
             document.body.className = 'mode-' + m; 
             if(m==='map' && map) setTimeout(() => { map.invalidateSize(); if(selfPos) map.setView(selfPos, 17); }, 300);
-            if(document.getElementById('side-menu').classList.contains('open')) toggleMenu(); 
+            toggleMenu(); // モード切替時にメニューを閉じる
         }
 
         function updateHeading(h) {
@@ -252,62 +267,4 @@
             const f = document.getElementById('p2p-from').value, t = document.getElementById('p2p-to').value;
             if (f==="" || t==="" || f===t) return;
             const p1 = L.latLng(savedPlots[f].lat, savedPlots[f].lng), p2 = L.latLng(savedPlots[t].lat, savedPlots[t].lng);
-            const dist = p1.distanceTo(p2);
-            let brg = (Math.atan2(p2.lng - p1.lng, p2.lat - p1.lat) * 180 / Math.PI + 360) % 360;
-            document.getElementById('res-dist').innerText = dist > 1000 ? (dist/1000).toFixed(2) + " km" : Math.round(dist) + " m";
-            document.getElementById('res-azimuth').innerText = `${Math.round(brg)}° (${Math.round(brg * 17.77).toString().padStart(4, '0')} MIL)`;
-        }
-
-        async function initSystem() {
-            document.getElementById('start-screen').style.display = 'none';
-            if (window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission === 'function') {
-                const res = await DeviceOrientationEvent.requestPermission();
-                if (res === 'granted') window.addEventListener('deviceorientation', (e) => updateHeading(e.webkitCompassHeading || 360-e.alpha), true);
-            } else window.addEventListener('deviceorientationabsolute', (e) => updateHeading(360 - e.alpha), true);
-
-            map = L.map('map', { zoomControl: false, attributionControl: false });
-            L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg', { maxZoom: 18 }).addTo(map);
-            selfMarker = L.marker([0,0], { icon: L.divIcon({ className:'d-marker', html:'<div id="self-arrow" class="direction-marker"></div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
-
-            restorePlots();
-            const p2pEntry = document.createElement('div'); p2pEntry.className = 'custom-menu-item'; p2pEntry.innerHTML = '＞ 2地点間ナビ計算機';
-            p2pEntry.onclick = () => {
-                const opts = savedPlots.map((p, i) => `<option value="${i}">${p.name}</option>`).join('');
-                document.getElementById('p2p-from').innerHTML = opts; document.getElementById('p2p-to').innerHTML = opts;
-                document.getElementById('p2p-calc-panel').style.display = 'flex'; toggleMenu();
-            };
-            document.getElementById('menu-ext-area').appendChild(p2pEntry);
-
-            map.on('move', () => {
-                const c = map.getCenter();
-                document.getElementById('center-mgrs').innerText = mgrs.forward([c.lng, c.lat]);
-                if(selfPos) {
-                    document.getElementById('range-val').innerText = `${Math.round(L.latLng(selfPos).distanceTo(c))} m`;
-                    document.getElementById('bearing-val').innerText = `${getMilBearing(selfPos, [c.lat, c.lng])} MIL`;
-                }
-            });
-
-            navigator.geolocation.watchPosition((pos) => {
-                const lat = pos.coords.latitude, lon = pos.coords.longitude; selfPos = [lat, lon];
-                const m = mgrs.forward([lon, lat]);
-                document.getElementById('self-mgrs-c').innerText = m; document.getElementById('self-mgrs-m').innerText = m;
-                if (!window.initialSet) { map.setView(selfPos, 17); window.initialSet = true; }
-                selfMarker.setLatLng(selfPos);
-                currentDeclination = - ( (lat - 37) * 0.2 + (lon - 135) * 0.1 + 7.5 );
-            }, null, { enableHighAccuracy: true });
-        }
-
-        document.getElementById('plot-btn').onclick = () => {
-            const n = prompt("地点名:", "地点-" + (savedPlots.length+1));
-            if (n) { const c = map.getCenter(); saveAndPlot(c.lat, c.lng, mgrs.forward([c.lng, c.lat]), n); }
-        };
-        document.getElementById('input-btn').onclick = () => document.getElementById('input-panel').style.display = 'flex';
-        document.getElementById('list-btn').onclick = () => {
-            document.getElementById('plot-list-content').innerHTML = savedPlots.map((p, i) => `<div style="border-bottom:1px solid #002200; padding:10px 0; display:flex; justify-content:space-between;"><div><b>${p.name}</b><br><small>${p.mgrs}</small></div><button onclick="deletePlot(${i})" style="color:red; background:none; border:1px solid red;">消去</button></div>`).join('');
-            document.getElementById('plot-list-panel').style.display = 'flex';
-        };
-        window.deletePlot = (i) => { savedPlots.splice(i, 1); localStorage.setItem('tactical_plots', JSON.stringify(savedPlots)); restorePlots(); document.getElementById('list-btn').onclick(); };
-        document.getElementById('p2p-from').onchange = calculateP2P; document.getElementById('p2p-to').onchange = calculateP2P;
-    </script>
-</body>
-</html>
+            const dist = p1.
