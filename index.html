@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>TACTICAL OS v5.4 Lite (JP)</title>
+    <title>TACTICAL OS v5.4 Lite (JP) - Precision</title>
     
     <script src="https://cdn.jsdelivr.net/npm/mgrs@1.0.0/dist/mgrs.min.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -23,7 +23,7 @@
         #crosshair::after { content:''; position:absolute; top:0; left:19px; width:2px; height:40px; background:#ff0000; }
 
         #compass-mini {
-            position: absolute; bottom: 30px; left: 20px; width: 90px; height: 90px;
+            position: absolute; bottom: 35px; left: 20px; width: 90px; height: 90px;
             z-index: 2000; border: 2px solid #00ff00; border-radius: 50%;
             background: rgba(0,0,0,0.7); pointer-events: none;
         }
@@ -39,21 +39,20 @@
 
         #compass-full { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; }
         #face-full { width: 280px; height: 280px; border: 4px solid #00ff00; border-radius: 50%; position: relative; }
-        #needle-fixed { width: 4px; height: 150px; background: #ff0000; position: absolute; left: 50%; top: -10px; transform: translateX(-50%); z-index: 10; }
+        
+        /* 針の長さを円の内側に収まるよう修正 */
+        #needle-fixed { width: 4px; height: 140px; background: #ff0000; position: absolute; left: 50%; top: 0; transform: translateX(-50%); z-index: 10; }
 
-        .direction-marker {
-            width: 0; height: 0; border-left: 10px solid transparent; border-right: 10px solid transparent;
-            border-bottom: 20px solid #00ff00; filter: drop-shadow(0 0 5px #00ff00);
+        /* 方位記号用のスタイル */
+        .cardinal {
+            position: absolute; width: 100%; height: 100%; top: 0; left: 0;
+            display: flex; justify-content: center; font-weight: bold; font-family: monospace; pointer-events: none;
         }
+        .cardinal span { position: absolute; top: -25px; font-size: 1.2rem; }
+        .mini-cardinal span { top: -18px; font-size: 0.8rem; }
 
         #menu-btn { position: absolute; top: 15px; left: 15px; font-size: 2rem; z-index: 4500; cursor: pointer; color: #00ff00; }
-        
-        /* メニュー外タップ用のオーバーレイ */
-        #menu-overlay {
-            position: fixed; inset: 0; background: rgba(0,0,0,0.4);
-            z-index: 3900; display: none;
-        }
-
+        #menu-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 3900; display: none; }
         #side-menu { position: fixed; top: 0; left: -260px; width: 250px; height: 100%; background: #111; z-index: 4000; transition: 0.3s; border-right: 1px solid #00ff00; }
         #side-menu.open { left: 0; }
         #map { width: 100%; height: 100%; position: absolute; background: #111; }
@@ -84,6 +83,7 @@
         .result-val { color: #ffff00; font-weight: bold; }
 
         .custom-menu-item { cursor: pointer; padding: 15px; border-bottom: 1px solid #003300; color: #00ff00; font-size: 13px; width: 100%; box-sizing: border-box; }
+        .direction-marker { width: 0; height: 0; border-left: 10px solid transparent; border-right: 10px solid transparent; border-bottom: 20px solid #00ff00; filter: drop-shadow(0 0 5px #00ff00); }
         .custom-marker-html { display: flex; align-items: center; justify-content: center; color: #ff0000; font-size: 22px; font-weight: bold; text-shadow: 0 0 4px #000; }
         .leaflet-popup-content-wrapper { background: #000 !important; color: #00ff00 !important; border: 1px solid #00ff00; border-radius: 0; }
         
@@ -98,7 +98,6 @@
     </div>
 
     <div id="menu-overlay" onclick="toggleMenu()"></div>
-
     <div id="menu-btn" onclick="toggleMenu()">&#9776;</div>
     <div id="side-menu">
         <div style="padding:20px; border-bottom:1px solid #333; font-weight:bold; color:#888;">タクティカルメニュー</div>
@@ -142,7 +141,6 @@
             </div>
             <div id="mini-val">0000</div>
         </div>
-
         <div id="plot-btn" class="t-btn">中心点を<br>マーク</div>
         <div id="input-btn" class="t-btn">座標を<br>直接入力</div>
         <div id="list-btn" class="t-btn">ログ一覧</div>
@@ -184,6 +182,17 @@
         let markersOnMap = [];
 
         function drawTicks(el, isMini) {
+            // 方位記号の追加 (N, E, S, W)
+            const marks = [{a:0,t:'N'}, {a:90,t:'E'}, {a:180,t:'S'}, {a:270,t:'W'}];
+            marks.forEach(m => {
+                const d = document.createElement('div');
+                d.className = isMini ? 'cardinal mini-cardinal' : 'cardinal';
+                d.style.transform = `rotate(${m.a}deg)`;
+                d.innerHTML = `<span>${m.t}</span>`;
+                el.appendChild(d);
+            });
+
+            // 目盛りの描画
             for (let i = 0; i < 32; i++) {
                 const d = document.createElement('div');
                 d.style.cssText = `position:absolute;width:100%;height:100%;transform:rotate(${i*11.25}deg);`;
@@ -194,7 +203,6 @@
         }
         drawTicks(faceFull, false); drawTicks(faceMini, true);
 
-        // メニュー開閉とオーバーレイの制御
         function toggleMenu() { 
             const menu = document.getElementById('side-menu');
             const overlay = document.getElementById('menu-overlay');
@@ -205,7 +213,7 @@
         function switchMode(m) { 
             document.body.className = 'mode-' + m; 
             if(m==='map' && map) setTimeout(() => { map.invalidateSize(); if(selfPos) map.setView(selfPos, 17); }, 300);
-            toggleMenu(); // モード切替時にメニューを閉じる
+            toggleMenu();
         }
 
         function updateHeading(h) {
@@ -267,4 +275,66 @@
             const f = document.getElementById('p2p-from').value, t = document.getElementById('p2p-to').value;
             if (f==="" || t==="" || f===t) return;
             const p1 = L.latLng(savedPlots[f].lat, savedPlots[f].lng), p2 = L.latLng(savedPlots[t].lat, savedPlots[t].lng);
-            const dist = p1.
+            const dist = p1.distanceTo(p2);
+            const lat1 = p1.lat * Math.PI / 180, lon1 = p1.lng * Math.PI / 180;
+            const lat2 = p2.lat * Math.PI / 180, lon2 = p2.lng * Math.PI / 180;
+            const y = Math.sin(lon2 - lon1) * Math.cos(lat2);
+            const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(lon2 - lon1);
+            let brg = (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+            document.getElementById('res-dist').innerText = dist > 1000 ? (dist/1000).toFixed(2) + " km" : Math.round(dist) + " m";
+            document.getElementById('res-azimuth').innerText = `${Math.round(brg)}° (${Math.round(brg * 17.77).toString().padStart(4, '0')} MIL)`;
+        }
+
+        async function initSystem() {
+            document.getElementById('start-screen').style.display = 'none';
+            if (window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                const res = await DeviceOrientationEvent.requestPermission();
+                if (res === 'granted') window.addEventListener('deviceorientation', (e) => updateHeading(e.webkitCompassHeading || 360-e.alpha), true);
+            } else window.addEventListener('deviceorientationabsolute', (e) => updateHeading(360 - e.alpha), true);
+
+            map = L.map('map', { zoomControl: false, attributionControl: false });
+            L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg', { maxZoom: 18 }).addTo(map);
+            selfMarker = L.marker([0,0], { icon: L.divIcon({ className:'d-marker', html:'<div id="self-arrow" class="direction-marker"></div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
+
+            restorePlots();
+            const p2pEntry = document.createElement('div'); p2pEntry.className = 'custom-menu-item'; p2pEntry.innerHTML = '＞ 2地点間ナビ計算機';
+            p2pEntry.onclick = () => {
+                const opts = savedPlots.map((p, i) => `<option value="${i}">${p.name}</option>`).join('');
+                document.getElementById('p2p-from').innerHTML = opts; document.getElementById('p2p-to').innerHTML = opts;
+                document.getElementById('p2p-calc-panel').style.display = 'flex'; toggleMenu();
+            };
+            document.getElementById('menu-ext-area').appendChild(p2pEntry);
+
+            map.on('move', () => {
+                const c = map.getCenter();
+                document.getElementById('center-mgrs').innerText = mgrs.forward([c.lng, c.lat]);
+                if(selfPos) {
+                    document.getElementById('range-val').innerText = `${Math.round(L.latLng(selfPos).distanceTo(c))} m`;
+                    document.getElementById('bearing-val').innerText = `${getMilBearing(selfPos, [c.lat, c.lng])} MIL`;
+                }
+            });
+
+            navigator.geolocation.watchPosition((pos) => {
+                const lat = pos.coords.latitude, lon = pos.coords.longitude; selfPos = [lat, lon];
+                const m = mgrs.forward([lon, lat]);
+                document.getElementById('self-mgrs-c').innerText = m; document.getElementById('self-mgrs-m').innerText = m;
+                if (!window.initialSet) { map.setView(selfPos, 17); window.initialSet = true; }
+                selfMarker.setLatLng(selfPos);
+                currentDeclination = - ( (lat - 37) * 0.2 + (lon - 135) * 0.1 + 7.5 );
+            }, null, { enableHighAccuracy: true });
+        }
+
+        document.getElementById('plot-btn').onclick = () => {
+            const n = prompt("地点名:", "地点-" + (savedPlots.length+1));
+            if (n) { const c = map.getCenter(); saveAndPlot(c.lat, c.lng, mgrs.forward([c.lng, c.lat]), n); }
+        };
+        document.getElementById('input-btn').onclick = () => document.getElementById('input-panel').style.display = 'flex';
+        document.getElementById('list-btn').onclick = () => {
+            document.getElementById('plot-list-content').innerHTML = savedPlots.map((p, i) => `<div style="border-bottom:1px solid #002200; padding:10px 0; display:flex; justify-content:space-between;"><div><b>${p.name}</b><br><small>${p.mgrs}</small></div><button onclick="deletePlot(${i})" style="color:red; background:none; border:1px solid red;">消去</button></div>`).join('');
+            document.getElementById('plot-list-panel').style.display = 'flex';
+        };
+        window.deletePlot = (i) => { savedPlots.splice(i, 1); localStorage.setItem('tactical_plots', JSON.stringify(savedPlots)); restorePlots(); document.getElementById('list-btn').onclick(); };
+        document.getElementById('p2p-from').onchange = calculateP2P; document.getElementById('p2p-to').onchange = calculateP2P;
+    </script>
+</body>
+</html>
