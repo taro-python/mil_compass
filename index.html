@@ -2,15 +2,15 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>TACTICAL OS v5.4 Lite (JP) - Precision</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>TACTICAL OS v5.5 Precision</title>
     
     <script src="https://cdn.jsdelivr.net/npm/mgrs@1.0.0/dist/mgrs.min.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <style>
-        /* --- 基本スタイル --- */
+        /* --- 基本スタイル (前回を維持) --- */
         body { background: #000; color: #00ff00; font-family: sans-serif; margin: 0; overflow: hidden; height: 100vh; width: 100vw; }
         .mode-compass #map-ui, .mode-compass #info-map { display: none; }
         .mode-map #compass-full, .mode-map #info-compass { display: none; }
@@ -39,11 +39,8 @@
 
         #compass-full { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; }
         #face-full { width: 280px; height: 280px; border: 4px solid #00ff00; border-radius: 50%; position: relative; }
-        
-        /* 針の長さを円の内側に収まるよう修正 */
         #needle-fixed { width: 4px; height: 140px; background: #ff0000; position: absolute; left: 50%; top: 0; transform: translateX(-50%); z-index: 10; }
 
-        /* 方位記号用のスタイル */
         .cardinal {
             position: absolute; width: 100%; height: 100%; top: 0; left: 0;
             display: flex; justify-content: center; font-weight: bold; font-family: monospace; pointer-events: none;
@@ -55,8 +52,7 @@
         #menu-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 3900; display: none; }
         #side-menu { position: fixed; top: 0; left: -260px; width: 250px; height: 100%; background: #111; z-index: 4000; transition: 0.3s; border-right: 1px solid #00ff00; }
         #side-menu.open { left: 0; }
-        #map { width: 100%; height: 100%; position: absolute; background: #111; }
-        #start-screen { position: fixed; inset: 0; background: #000; z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+        #map { width: 100%; height: 100%; position: absolute; background: #111; touch-action: none; } /* タッチ制御のため追加 */
 
         .t-btn {
             position: absolute; z-index: 3000; display: none;
@@ -72,22 +68,12 @@
 
         .ext-panel {
             position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            width: 85%; max-width: 350px; max-height: 80vh;
-            background: #050a05; border: 1px solid #00ff00;
+            width: 85%; max-width: 350px; background: #050a05; border: 1px solid #00ff00;
             z-index: 5000; display: none; flex-direction: column; padding: 20px;
-            box-shadow: 0 0 30px rgba(0, 255, 0, 0.3); color: #00ff00;
         }
-        .ext-input, .p2p-select { background: #000; color: #00ff00; border: 1px solid #004400; width: 100%; padding: 12px; margin: 10px 0; font-family: monospace; outline: none; box-sizing: border-box; }
-        .result-box { background: rgba(0, 30, 0, 0.9); border: 1px solid #00ff00; padding: 15px; margin-top: 10px; }
-        .result-line { display: flex; justify-content: space-between; margin-bottom: 5px; }
-        .result-val { color: #ffff00; font-weight: bold; }
-
-        .custom-menu-item { cursor: pointer; padding: 15px; border-bottom: 1px solid #003300; color: #00ff00; font-size: 13px; width: 100%; box-sizing: border-box; }
-        .direction-marker { width: 0; height: 0; border-left: 10px solid transparent; border-right: 10px solid transparent; border-bottom: 20px solid #00ff00; filter: drop-shadow(0 0 5px #00ff00); }
-        .custom-marker-html { display: flex; align-items: center; justify-content: center; color: #ff0000; font-size: 22px; font-weight: bold; text-shadow: 0 0 4px #000; }
-        .leaflet-popup-content-wrapper { background: #000 !important; color: #00ff00 !important; border: 1px solid #00ff00; border-radius: 0; }
-        
-        @keyframes blink { 0% {opacity:1;} 50% {opacity:0.3;} 100% {opacity:1;} }
+        .ext-input, .p2p-select { background: #000; color: #00ff00; border: 1px solid #004400; width: 100%; padding: 12px; margin: 10px 0; box-sizing: border-box; }
+        .direction-marker { width: 0; height: 0; border-left: 10px solid transparent; border-right: 10px solid transparent; border-bottom: 20px solid #00ff00; }
+        .custom-marker-html { display: flex; align-items: center; justify-content: center; color: #ff0000; font-size: 22px; font-weight: bold; }
     </style>
 </head>
 <body class="mode-compass">
@@ -112,15 +98,10 @@
     </div>
 
     <div id="info-map" class="info-panel">
-        <span class="label">現在地 MGRS</span>
-        <div class="val"><span id="self-mgrs-m">---</span></div>
-        <span class="label">中心点 MGRS</span>
-        <div class="val"><span id="center-mgrs">---</span></div>
+        <span class="label">現在地 MGRS</span><div class="val"><span id="self-mgrs-m">---</span></div>
+        <span class="label">中心点 MGRS</span><div class="val"><span id="center-mgrs">---</span></div>
         <span class="label">距離 / 方位 (中心点まで)</span>
-        <div class="val">
-            <span id="range-val" style="color:#ffff00;">0 m</span>
-            <span id="bearing-val" style="color:#00ff00;">0000 MIL</span>
-        </div>
+        <div class="val"><span id="range-val" style="color:#ffff00;">0 m</span><span id="bearing-val">0000 MIL</span></div>
     </div>
 
     <div id="compass-full">
@@ -147,32 +128,22 @@
     </div>
 
     <div id="input-panel" class="ext-panel">
-        <div style="font-size:14px; margin-bottom:15px; border-bottom:1px solid #00ff00; padding-bottom:5px;">手動座標プロット</div>
+        <div style="font-size:14px; border-bottom:1px solid #00ff00; padding-bottom:5px;">手動座標プロット</div>
         <input type="text" id="m-name" class="ext-input" placeholder="名称">
         <input type="text" id="m-coord" class="ext-input" placeholder="MGRS座標">
-        <div style="display:flex; gap:10px;">
-            <button class="t-btn" style="position:static; flex:1; width:auto; background:#004400;" onclick="execManualPlot()">決定</button>
-            <button class="t-btn" style="position:static; flex:1; width:auto;" onclick="closePanel('input-panel')">中止</button>
-        </div>
+        <div style="display:flex; gap:10px;"><button class="t-btn" style="position:static; flex:1; width:auto; background:#004400;" onclick="execManualPlot()">決定</button><button class="t-btn" style="position:static; flex:1; width:auto;" onclick="closePanel('input-panel')">中止</button></div>
     </div>
-
     <div id="plot-list-panel" class="ext-panel">
-        <div style="font-size:14px; margin-bottom:15px; border-bottom:1px solid #00ff00; padding-bottom:5px;">タクティカルログ</div>
-        <div id="plot-list-content" style="overflow-y:auto; flex-grow:1; max-height:50vh;"></div>
-        <button class="t-btn" style="position:static; width:100%; margin-top:15px;" onclick="closePanel('plot-list-panel')">戻る</button>
+        <div id="plot-list-content" style="overflow-y:auto; max-height:50vh;"></div>
+        <button class="t-btn" style="position:static; width:100%; margin-top:10px;" onclick="closePanel('plot-list-panel')">戻る</button>
     </div>
-
     <div id="p2p-calc-panel" class="ext-panel">
-        <div style="font-size:14px; margin-bottom:15px; border-bottom:1px solid #00ff00; padding-bottom:5px;">2地点間ナビ計算機</div>
-        <label style="font-size:10px;">FROM</label>
-        <select id="p2p-from" class="p2p-select"></select>
-        <label style="font-size:10px;">TO</label>
-        <select id="p2p-to" class="p2p-select"></select>
-        <div class="result-box">
-            <div class="result-line"><span>距離:</span> <span id="res-dist" class="result-val">---</span></div>
-            <div class="result-line"><span>方位:</span> <span id="res-azimuth" class="result-val">---</span></div>
+        <div style="font-size:14px; border-bottom:1px solid #00ff00; padding-bottom:5px;">2地点間計算</div>
+        <select id="p2p-from" class="p2p-select"></select><select id="p2p-to" class="p2p-select"></select>
+        <div style="background:rgba(0,30,0,0.9); padding:10px; border:1px solid #00ff00;">
+            距離: <span id="res-dist" style="color:#ffff00;">---</span><br>方位: <span id="res-azimuth" style="color:#ffff00;">---</span>
         </div>
-        <button class="t-btn" style="position:static; width:100%; margin-top:15px;" onclick="closePanel('p2p-calc-panel')">閉じる</button>
+        <button class="t-btn" style="position:static; width:100%; margin-top:10px;" onclick="closePanel('p2p-calc-panel')">閉じる</button>
     </div>
 
     <script>
@@ -181,108 +152,69 @@
         let savedPlots = JSON.parse(localStorage.getItem('tactical_plots') || '[]');
         let markersOnMap = [];
 
+        // コンパス描画
         function drawTicks(el, isMini) {
-            // 方位記号の追加 (N, E, S, W)
             const marks = [{a:0,t:'N'}, {a:90,t:'E'}, {a:180,t:'S'}, {a:270,t:'W'}];
             marks.forEach(m => {
-                const d = document.createElement('div');
-                d.className = isMini ? 'cardinal mini-cardinal' : 'cardinal';
-                d.style.transform = `rotate(${m.a}deg)`;
-                d.innerHTML = `<span>${m.t}</span>`;
-                el.appendChild(d);
+                const d = document.createElement('div'); d.className = isMini ? 'cardinal mini-cardinal' : 'cardinal';
+                d.style.transform = `rotate(${m.a}deg)`; d.innerHTML = `<span>${m.t}</span>`; el.appendChild(d);
             });
-
-            // 目盛りの描画
             for (let i = 0; i < 32; i++) {
-                const d = document.createElement('div');
-                d.style.cssText = `position:absolute;width:100%;height:100%;transform:rotate(${i*11.25}deg);`;
-                const t = document.createElement('div');
-                t.style.cssText = `width:${isMini?1:2}px;height:${i%4?(isMini?5:15):(isMini?10:30)}px;background:#00ff00;margin:0 auto;`;
+                const d = document.createElement('div'); d.style.cssText = `position:absolute;width:100%;height:100%;transform:rotate(${i*11.25}deg);`;
+                const t = document.createElement('div'); t.style.cssText = `width:${isMini?1:2}px;height:${i%4?(isMini?5:15):(isMini?10:30)}px;background:#00ff00;margin:0 auto;`;
                 d.appendChild(t); el.appendChild(d);
             }
         }
         drawTicks(faceFull, false); drawTicks(faceMini, true);
 
+        // メニュー
         function toggleMenu() { 
-            const menu = document.getElementById('side-menu');
-            const overlay = document.getElementById('menu-overlay');
-            const isOpen = menu.classList.toggle('open');
-            overlay.style.display = isOpen ? 'block' : 'none';
+            const menu = document.getElementById('side-menu'); const overlay = document.getElementById('menu-overlay');
+            const isOpen = menu.classList.toggle('open'); overlay.style.display = isOpen ? 'block' : 'none';
         }
-
         function switchMode(m) { 
             document.body.className = 'mode-' + m; 
             if(m==='map' && map) setTimeout(() => { map.invalidateSize(); if(selfPos) map.setView(selfPos, 17); }, 300);
             toggleMenu();
         }
 
+        // --- ワンハンドズーム (ダブルタップ・ドラッグ) の実装 ---
+        let lastTapTime = 0, isZooming = false, startY = 0, startZoom = 0;
+        
+        function setupOneHandZoom() {
+            const mapEl = document.getElementById('map');
+            mapEl.addEventListener('touchstart', (e) => {
+                if (e.touches.length !== 1) return;
+                const now = Date.now();
+                if (now - lastTapTime < 300) {
+                    isZooming = true;
+                    startY = e.touches[0].pageY;
+                    startZoom = map.getZoom();
+                    e.preventDefault();
+                }
+                lastTapTime = now;
+            }, { passive: false });
+
+            mapEl.addEventListener('touchmove', (e) => {
+                if (!isZooming) return;
+                const deltaY = startY - e.touches[0].pageY;
+                const zoomChange = deltaY / 50; // 感度調整
+                map.setZoom(startZoom + zoomChange, { animate: false });
+                e.preventDefault();
+            }, { passive: false });
+
+            mapEl.addEventListener('touchend', () => { isZooming = false; });
+        }
+
+        // 基本ロジック
         function updateHeading(h) {
             if (h === null) return;
             const trueH = (h + currentDeclination + 360) % 360;
             const milVal = Math.round(trueH * (6400 / 360)).toString().padStart(4, '0');
-            faceFull.style.transform = `rotate(-${trueH}deg)`;
-            faceMini.style.transform = `rotate(-${trueH}deg)`;
+            faceFull.style.transform = `rotate(-${trueH}deg)`; faceMini.style.transform = `rotate(-${trueH}deg)`;
             document.getElementById('mil-display-f').innerText = milVal + " MIL";
             document.getElementById('mini-val').innerText = milVal;
-            const arrow = document.getElementById('self-arrow');
-            if(arrow) arrow.style.transform = `rotate(${trueH}deg)`;
-        }
-
-        function getMilBearing(p1, p2) {
-            const lat1 = p1[0] * Math.PI / 180, lon1 = p1[1] * Math.PI / 180;
-            const lat2 = p2[0] * Math.PI / 180, lon2 = p2[1] * Math.PI / 180;
-            const y = Math.sin(lon2 - lon1) * Math.cos(lat2);
-            const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(lon2 - lon1);
-            let brg = (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
-            return Math.round(brg * (6400 / 360)).toString().padStart(4, '0');
-        }
-
-        window.closePanel = (id) => document.getElementById(id).style.display = 'none';
-
-        function addMarkerToMap(p) {
-            const icon = L.divIcon({ className: 'custom-marker-html', html: `<div>●</div>`, iconSize: [30, 30] });
-            const marker = L.marker([p.lat, p.lng], {icon: icon}).addTo(map);
-            marker.bindPopup(`<b>${p.name}</b><br>MGRS: ${p.mgrs}<br>距離: ${p.dist}`);
-            markersOnMap.push(marker);
-        }
-
-        function restorePlots() {
-            markersOnMap.forEach(m => map.removeLayer(m));
-            markersOnMap = [];
-            savedPlots.forEach(p => addMarkerToMap(p));
-        }
-
-        function saveAndPlot(lat, lng, mgrsCoord, name) {
-            let dStr = selfPos ? `${Math.round(L.latLng(selfPos).distanceTo([lat, lng]))}m` : "---";
-            const newPlot = { lat, lng, mgrs: mgrsCoord, name, dist: dStr };
-            savedPlots.push(newPlot);
-            localStorage.setItem('tactical_plots', JSON.stringify(savedPlots));
-            addMarkerToMap(newPlot);
-        }
-
-        window.execManualPlot = () => {
-            const name = document.getElementById('m-name').value || "地点";
-            const coord = document.getElementById('m-coord').value.trim();
-            try {
-                const decoded = mgrs.toPoint(coord);
-                saveAndPlot(decoded[1], decoded[0], coord, name);
-                closePanel('input-panel');
-                map.setView([decoded[1], decoded[0]], 17);
-            } catch(e) { alert("座標エラー"); }
-        };
-
-        function calculateP2P() {
-            const f = document.getElementById('p2p-from').value, t = document.getElementById('p2p-to').value;
-            if (f==="" || t==="" || f===t) return;
-            const p1 = L.latLng(savedPlots[f].lat, savedPlots[f].lng), p2 = L.latLng(savedPlots[t].lat, savedPlots[t].lng);
-            const dist = p1.distanceTo(p2);
-            const lat1 = p1.lat * Math.PI / 180, lon1 = p1.lng * Math.PI / 180;
-            const lat2 = p2.lat * Math.PI / 180, lon2 = p2.lng * Math.PI / 180;
-            const y = Math.sin(lon2 - lon1) * Math.cos(lat2);
-            const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(lon2 - lon1);
-            let brg = (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
-            document.getElementById('res-dist').innerText = dist > 1000 ? (dist/1000).toFixed(2) + " km" : Math.round(dist) + " m";
-            document.getElementById('res-azimuth').innerText = `${Math.round(brg)}° (${Math.round(brg * 17.77).toString().padStart(4, '0')} MIL)`;
+            if(document.getElementById('self-arrow')) document.getElementById('self-arrow').style.transform = `rotate(${trueH}deg)`;
         }
 
         async function initSystem() {
@@ -292,11 +224,14 @@
                 if (res === 'granted') window.addEventListener('deviceorientation', (e) => updateHeading(e.webkitCompassHeading || 360-e.alpha), true);
             } else window.addEventListener('deviceorientationabsolute', (e) => updateHeading(360 - e.alpha), true);
 
-            map = L.map('map', { zoomControl: false, attributionControl: false });
+            map = L.map('map', { zoomControl: false, attributionControl: false, doubleClickZoom: false }); // デフォルトのダブルクリックズームをオフ
             L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg', { maxZoom: 18 }).addTo(map);
             selfMarker = L.marker([0,0], { icon: L.divIcon({ className:'d-marker', html:'<div id="self-arrow" class="direction-marker"></div>', iconSize:[20,20], iconAnchor:[10,10]}) }).addTo(map);
-
+            
+            setupOneHandZoom(); // ズーム機能の有効化
             restorePlots();
+
+            // 拡張メニュー
             const p2pEntry = document.createElement('div'); p2pEntry.className = 'custom-menu-item'; p2pEntry.innerHTML = '＞ 2地点間ナビ計算機';
             p2pEntry.onclick = () => {
                 const opts = savedPlots.map((p, i) => `<option value="${i}">${p.name}</option>`).join('');
@@ -309,8 +244,11 @@
                 const c = map.getCenter();
                 document.getElementById('center-mgrs').innerText = mgrs.forward([c.lng, c.lat]);
                 if(selfPos) {
-                    document.getElementById('range-val').innerText = `${Math.round(L.latLng(selfPos).distanceTo(c))} m`;
-                    document.getElementById('bearing-val').innerText = `${getMilBearing(selfPos, [c.lat, c.lng])} MIL`;
+                    const d = L.latLng(selfPos).distanceTo(c);
+                    document.getElementById('range-val').innerText = `${Math.round(d)} m`;
+                    const y = Math.sin((c.lng-selfPos[1])*Math.PI/180)*Math.cos(c.lat*Math.PI/180);
+                    const x = Math.cos(selfPos[0]*Math.PI/180)*Math.sin(c.lat*Math.PI/180)-Math.sin(selfPos[0]*Math.PI/180)*Math.cos(c.lat*Math.PI/180)*Math.cos((c.lng-selfPos[1])*Math.PI/180);
+                    document.getElementById('bearing-val').innerText = `${Math.round(((Math.atan2(y,x)*180/Math.PI+360)%360)*(6400/360)).toString().padStart(4,'0')} MIL`;
                 }
             });
 
@@ -324,17 +262,28 @@
             }, null, { enableHighAccuracy: true });
         }
 
+        // プロット関連
+        function addMarkerToMap(p) {
+            const icon = L.divIcon({ className: 'custom-marker-html', html: `<div>●</div>`, iconSize: [30, 30] });
+            const marker = L.marker([p.lat, p.lng], {icon: icon}).addTo(map);
+            marker.bindPopup(`<b>${p.name}</b><br>${p.mgrs}`); markersOnMap.push(marker);
+        }
+        function restorePlots() { markersOnMap.forEach(m => map.removeLayer(m)); markersOnMap = []; savedPlots.forEach(p => addMarkerToMap(p)); }
+        window.closePanel = (id) => document.getElementById(id).style.display = 'none';
         document.getElementById('plot-btn').onclick = () => {
-            const n = prompt("地点名:", "地点-" + (savedPlots.length+1));
-            if (n) { const c = map.getCenter(); saveAndPlot(c.lat, c.lng, mgrs.forward([c.lng, c.lat]), n); }
+            const n = prompt("地点名:", "WP-" + (savedPlots.length+1));
+            if (n) { const c = map.getCenter(); const m = mgrs.forward([c.lng, c.lat]); savedPlots.push({lat:c.lat, lng:c.lng, mgrs:m, name:n, dist:'---'}); localStorage.setItem('tactical_plots', JSON.stringify(savedPlots)); restorePlots(); }
         };
         document.getElementById('input-btn').onclick = () => document.getElementById('input-panel').style.display = 'flex';
+        window.execManualPlot = () => {
+            const n = document.getElementById('m-name').value || "WP"; const c = document.getElementById('m-coord').value.trim();
+            try { const d = mgrs.toPoint(c); savedPlots.push({lat:d[1], lng:d[0], mgrs:c, name:n, dist:'---'}); localStorage.setItem('tactical_plots', JSON.stringify(savedPlots)); restorePlots(); closePanel('input-panel'); map.setView([d[1], d[0]], 17); } catch(e) { alert("MGRS Error"); }
+        };
         document.getElementById('list-btn').onclick = () => {
-            document.getElementById('plot-list-content').innerHTML = savedPlots.map((p, i) => `<div style="border-bottom:1px solid #002200; padding:10px 0; display:flex; justify-content:space-between;"><div><b>${p.name}</b><br><small>${p.mgrs}</small></div><button onclick="deletePlot(${i})" style="color:red; background:none; border:1px solid red;">消去</button></div>`).join('');
+            document.getElementById('plot-list-content').innerHTML = savedPlots.map((p, i) => `<div style="border-bottom:1px solid #002200; padding:10px; display:flex; justify-content:space-between;"><div><b>${p.name}</b><br>${p.mgrs}</div><button onclick="deletePlot(${i})" style="color:red; background:none; border:1px solid red;">消去</button></div>`).join('');
             document.getElementById('plot-list-panel').style.display = 'flex';
         };
         window.deletePlot = (i) => { savedPlots.splice(i, 1); localStorage.setItem('tactical_plots', JSON.stringify(savedPlots)); restorePlots(); document.getElementById('list-btn').onclick(); };
-        document.getElementById('p2p-from').onchange = calculateP2P; document.getElementById('p2p-to').onchange = calculateP2P;
     </script>
 </body>
 </html>
