@@ -3,15 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Tactical OS v5.4 + Ext v2.0</title>
+    <title>タクティカル OS v5.4 + Ext v2.0 (JP)</title>
     
     <script src="https://cdn.jsdelivr.net/npm/mgrs@1.0.0/dist/mgrs.min.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <style>
-        /* --- Base System Styles --- */
-        body { background: #000; color: #00ff00; font-family: monospace; margin: 0; overflow: hidden; height: 100vh; width: 100vw; }
+        /* --- 基本システムスタイル --- */
+        body { background: #000; color: #00ff00; font-family: 'Hiragino Kaku Gothic ProN', 'Meiryo', monospace; margin: 0; overflow: hidden; height: 100vh; width: 100vw; }
         .mode-compass #map-ui, .mode-compass #info-map { display: none; }
         .mode-map #compass-full, .mode-map #info-compass { display: none; }
         
@@ -32,10 +32,10 @@
         .info-panel { 
             position: absolute; top: 10px; right: 10px; z-index: 2000;
             background: rgba(0,0,0,0.85); padding: 8px; border-radius: 5px; border: 1px solid #00ff00;
-            min-width: 200px; box-shadow: 0 0 10px rgba(0,255,0,0.2);
+            min-width: 210px; box-shadow: 0 0 10px rgba(0,255,0,0.2);
         }
         .val { font-size: 0.95rem; font-weight: bold; display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
-        .label { font-size: 0.6rem; color: #888; display: block; margin-bottom: 1px; }
+        .label { font-size: 0.65rem; color: #888; display: block; margin-bottom: 1px; font-weight: bold; }
         .alt-val { font-size: 0.85rem; color: #00ffff; font-family: 'Courier New', monospace; }
 
         #compass-full { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; }
@@ -51,16 +51,16 @@
         #side-menu { position: fixed; top: 0; left: -260px; width: 250px; height: 100%; background: #111; z-index: 4000; transition: 0.3s; border-right: 1px solid #00ff00; }
         #side-menu.open { left: 0; }
         #map { width: 100%; height: 100%; position: absolute; background: #111; }
-        #start-screen { position: fixed; inset: 0; background: #000; z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        #start-screen { position: fixed; inset: 0; background: #000; z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
 
-        /* --- Extension Pack Styles --- */
+        /* --- 拡張パックスタイル --- */
         .t-btn {
             position: absolute; z-index: 3000; display: none;
             background: rgba(0, 20, 0, 0.85); color: #00ff00;
-            border: 1px solid #00ff00; font-family: 'Courier New', monospace;
+            border: 1px solid #00ff00; font-family: monospace;
             font-weight: bold; font-size: 11px; cursor: pointer;
             padding: 10px 5px; text-transform: uppercase;
-            letter-spacing: 1px; width: 90px; text-align: center;
+            letter-spacing: 1px; width: 95px; text-align: center;
             box-shadow: 0 0 10px rgba(0, 255, 0, 0.2);
         }
         .t-btn:active { background: #00ff00; color: #000; }
@@ -83,14 +83,14 @@
         }
         .result-box {
             background: rgba(0, 30, 0, 0.9); border: 1px solid #00ff00;
-            padding: 15px; margin-top: 10px; font-family: 'Courier New', monospace;
+            padding: 15px; margin-top: 10px; font-family: monospace;
         }
         .result-line { display: flex; justify-content: space-between; margin-bottom: 5px; }
         .result-val { color: #ffff00; font-weight: bold; }
 
         .custom-menu-item {
             cursor: pointer; padding: 15px; border-bottom: 1px solid #003300;
-            color: #00ff00; font-family: 'Courier New', monospace; font-size: 13px;
+            color: #00ff00; font-size: 13px;
             text-align: left; background: none; width: 100%; box-sizing: border-box;
         }
         .custom-menu-item:hover { background: rgba(0, 255, 0, 0.2); }
@@ -101,335 +101,25 @@
         }
         .leaflet-popup-content-wrapper { background: #000 !important; color: #00ff00 !important; border: 1px solid #00ff00; border-radius: 0; }
         .leaflet-popup-tip { background: #00ff00 !important; }
+
+        @keyframes blink { 0% {opacity:1;} 50% {opacity:0.3;} 100% {opacity:1;} }
     </style>
 </head>
 <body class="mode-compass">
 
     <div id="start-screen" onclick="initSystem()">
         <h2 style="color:#00ff00; letter-spacing: 4px;">TACTICAL OS v5.4</h2>
-        <p style="color:#00ff00; animation: blink 1.5s infinite;">TAP TO INITIALIZE SYSTEM</p>
+        <p style="color:#00ff00; animation: blink 1.5s infinite;">画面をタップしてシステム起動</p>
     </div>
 
     <div id="menu-btn" onclick="toggleMenu()">&#9776;</div>
     <div id="side-menu">
-        <div style="padding:20px; border-bottom:1px solid #333; font-weight:bold;">TACTICAL MENU</div>
-        <div class="custom-menu-item" onclick="switchMode('compass')">＞ COMPASS MODE</div>
-        <div class="custom-menu-item" onclick="switchMode('map')">＞ MAP MODE</div>
-        <div id="menu-ext-area"></div> <div class="custom-menu-item" onclick="toggleMenu()">CLOSE</div>
+        <div style="padding:20px; border-bottom:1px solid #333; font-weight:bold; color:#888;">タクティカルメニュー</div>
+        <div class="custom-menu-item" onclick="switchMode('compass')">＞ コンパスモード</div>
+        <div class="custom-menu-item" onclick="switchMode('map')">＞ マップモード</div>
+        <div id="menu-ext-area"></div> 
+        <div class="custom-menu-item" onclick="toggleMenu()" style="color:#666;">閉じる</div>
     </div>
 
     <div id="info-compass" class="info-panel">
-        <span class="label">SELF MGRS</span><span id="self-mgrs-c" class="val">GPS WAITING...</span>
-    </div>
-
-    <div id="info-map" class="info-panel">
-        <span class="label">SELF MGRS / ALT</span>
-        <div class="val">
-            <span id="self-mgrs-m">---</span>
-            <span id="self-alt" class="alt-val">WAIT...</span>
-        </div>
-        <span class="label">CENTER MGRS / ALT</span>
-        <div class="val">
-            <span id="center-mgrs">---</span>
-            <span id="center-alt" class="alt-val">WAIT...</span>
-        </div>
-        <span class="label">RANGE / BRG</span>
-        <div class="val">
-            <span id="range-val" style="color:#ffff00;">0 m</span>
-            <span id="bearing-val" style="color:#00ff00;">0000 MIL</span>
-        </div>
-    </div>
-
-    <div id="compass-full">
-        <div style="position:relative; width:280px; height:280px;">
-            <div id="needle-fixed"></div>
-            <div id="face-full"></div>
-        </div>
-        <div id="mil-display-f" style="font-size:3.5rem; margin-top:40px; font-weight:bold;">0000 MIL</div>
-    </div>
-
-    <div id="map-ui" style="width:100%; height:100%; position:relative;">
-        <div id="crosshair"></div>
-        <div id="map"></div>
-        <div id="compass-mini">
-            <div id="mini-face-container" style="width:100%; height:100%; position:relative;">
-                <div id="mini-needle" style="width:2px; height:45px; background:#ff0000; position:absolute; left:50%; top:0; transform:translateX(-50%); z-index:10;"></div>
-                <div id="mini-face" style="width:100%; height:100%; position:relative;"></div>
-            </div>
-            <div id="mini-val">0000</div>
-        </div>
-
-        <div id="plot-btn" class="t-btn">MARK<br>CENTER</div>
-        <div id="input-btn" class="t-btn">MANUAL<br>INPUT</div>
-        <div id="list-btn" class="t-btn">LOG<br>LIST</div>
-    </div>
-
-    <div id="input-panel" class="ext-panel">
-        <div style="font-size:14px; margin-bottom:15px; border-bottom:1px solid #00ff00; padding-bottom:5px;">MANUAL PLOT</div>
-        <input type="text" id="m-name" class="ext-input" placeholder="OBJECTIVE NAME">
-        <input type="text" id="m-coord" class="ext-input" placeholder="MGRS COORD (e.g. 54SUE...)">
-        <div style="display:flex; gap:10px;">
-            <button class="t-btn" style="position:static; flex:1; width:auto; background:#004400;" onclick="execManualPlot()">PLOT</button>
-            <button class="t-btn" style="position:static; flex:1; width:auto; border-color:#444;" onclick="closePanel('input-panel')">ABORT</button>
-        </div>
-    </div>
-
-    <div id="plot-list-panel" class="ext-panel">
-        <div style="font-size:14px; margin-bottom:15px; border-bottom:1px solid #00ff00; padding-bottom:5px;">TACTICAL LOG</div>
-        <div id="plot-list-content" style="overflow-y:auto; flex-grow:1; max-height:50vh;"></div>
-        <button class="t-btn" style="position:static; width:100%; margin-top:15px;" onclick="closePanel('plot-list-panel')">RETURN</button>
-    </div>
-
-    <div id="p2p-calc-panel" class="ext-panel">
-        <div style="font-size:14px; margin-bottom:15px; border-bottom:1px solid #00ff00; padding-bottom:5px;">P2P NAV CALCULATOR</div>
-        <label style="font-size:10px;">FROM (START)</label>
-        <select id="p2p-from" class="p2p-select"></select>
-        <label style="font-size:10px;">TO (TARGET)</label>
-        <select id="p2p-to" class="p2p-select"></select>
-        <div class="result-box">
-            <div class="result-line"><span>DISTANCE:</span> <span id="res-dist" class="result-val">---</span></div>
-            <div class="result-line"><span>AZIMUTH:</span> <span id="res-azimuth" class="result-val">---</span></div>
-        </div>
-        <button class="t-btn" style="position:static; width:100%; margin-top:15px;" onclick="closePanel('p2p-calc-panel')">CLOSE</button>
-    </div>
-
-    <script>
-        /* --- CORE LOGIC --- */
-        let map, selfMarker, selfPos = null, currentDeclination = 0;
-        let altTimeout;
-        const faceFull = document.getElementById('face-full');
-        const faceMini = document.getElementById('mini-face');
-        let savedPlots = JSON.parse(localStorage.getItem('tactical_plots') || '[]');
-        let markersOnMap = [];
-
-/* --- 修正版: JSONP方式による標高取得 --- */
-function fetchElevation(lat, lon, elementId) {
-    const el = document.getElementById(elementId);
-    if (!lat || !lon) return;
-
-    // 前のJSONPスクリプトがあれば削除
-    const oldScript = document.getElementById('temp-gsi-script');
-    if (oldScript) oldScript.remove();
-
-    // コールバック関数の定義（APIからの応答を受け取る）
-    window.gsiCallback = function(data) {
-        const h = data.elevation;
-        if (h !== undefined && h !== "-----") {
-            el.innerText = Math.round(h) + "m";
-            el.style.color = "#00ffff";
-        } else {
-            el.innerText = "OUT";
-        }
-    };
-
-    // JSONPリクエスト用スクリプトの生成
-    const script = document.createElement('script');
-    script.id = 'temp-gsi-script';
-    // outtype=JSONP と callback=gsiCallback を指定するのがコツです
-    script.src = `https://cyberjapandata2.gsi.go.jp/elevation/cgi/elevation.php?n=${lat.toFixed(6)}&e=${lon.toFixed(6)}&outtype=JSONP&callback=gsiCallback`;
-    
-    script.onerror = () => {
-        el.innerText = "OFFLINE";
-    };
-
-    document.body.appendChild(script);
-}
-
-        /* --- Improved Elevation Logic --- */
-        async function fetchElevation(lat, lon, elementId) {
-            const el = document.getElementById(elementId);
-            if (!lat || !lon) return;
-
-            try {
-                // 標高取得API呼び出し (CORS対策としてfetchを使用、失敗時はERR表示)
-                const url = `https://cyberjapandata2.gsi.go.jp/elevation/cgi/elevation.php?n=${lat.toFixed(6)}&e=${lon.toFixed(6)}&outtype=JSON`;
-                
-                const response = await fetch(url);
-                if (!response.ok) throw new Error("API_REACH_FAILURE");
-                
-                const data = await response.json();
-                const h = data.elevation;
-
-                if (h !== undefined && h !== "-----") {
-                    el.innerText = Math.round(h) + "m";
-                    el.style.color = "#00ffff"; 
-                } else {
-                    el.innerText = "OUT"; 
-                }
-            } catch (err) {
-                console.warn("Elevation fetch failed:", err);
-                el.innerText = "OFFLINE";
-            }
-        }
-
-        function getMilBearing(p1, p2) {
-            const lat1 = p1[0] * Math.PI / 180, lon1 = p1[1] * Math.PI / 180;
-            const lat2 = p2[0] * Math.PI / 180, lon2 = p2[1] * Math.PI / 180;
-            const y = Math.sin(lon2 - lon1) * Math.cos(lat2);
-            const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(lon2 - lon1);
-            let brg = Math.atan2(y, x) * 180 / Math.PI;
-            brg = (brg + 360) % 360;
-            return Math.round(brg * (6400 / 360)).toString().padStart(4, '0');
-        }
-
-        /* --- Extension Logic --- */
-        window.closePanel = (id) => document.getElementById(id).style.display = 'none';
-
-        function addMarkerToMap(p) {
-            const icon = L.divIcon({ className: 'custom-marker-html', html: `<div>●</div>`, iconSize: [30, 30] });
-            const marker = L.marker([p.lat, p.lng], {icon: icon}).addTo(map);
-            marker.bindPopup(`<b>${p.name}</b><br>MGRS: ${p.mgrs}<br>RNG: ${p.dist}`);
-            markersOnMap.push(marker);
-        }
-
-        function restorePlots() {
-            markersOnMap.forEach(m => map.removeLayer(m));
-            markersOnMap = [];
-            savedPlots.forEach(p => addMarkerToMap(p));
-        }
-
-        function saveAndPlot(lat, lng, mgrsCoord, name) {
-            let dStr = "---";
-            if (selfPos) {
-                dStr = `${Math.round(L.latLng(selfPos).distanceTo([lat, lng]))}m`;
-            }
-            const newPlot = { lat, lng, mgrs: mgrsCoord, name, dist: dStr };
-            savedPlots.push(newPlot);
-            localStorage.setItem('tactical_plots', JSON.stringify(savedPlots));
-            addMarkerToMap(newPlot);
-        }
-
-        window.execManualPlot = () => {
-            const name = document.getElementById('m-name').value || "MANUAL-PT";
-            const coord = document.getElementById('m-coord').value.trim();
-            try {
-                const decoded = mgrs.toPoint(coord);
-                saveAndPlot(decoded[1], decoded[0], coord, name);
-                closePanel('input-panel');
-                map.setView([decoded[1], decoded[0]], 17);
-            } catch(e) { alert("INVALID MGRS"); }
-        };
-
-        function calculateP2P() {
-            const fromIdx = document.getElementById('p2p-from').value;
-            const toIdx = document.getElementById('p2p-to').value;
-            if (fromIdx === "" || toIdx === "" || fromIdx === toIdx) return;
-
-            const p1 = L.latLng(savedPlots[fromIdx].lat, savedPlots[fromIdx].lng);
-            const p2 = L.latLng(savedPlots[toIdx].lat, savedPlots[toIdx].lng);
-            
-            const dist = p1.distanceTo(p2);
-            let angle = (Math.atan2(p2.lng - p1.lng, p2.lat - p1.lat) * 180 / Math.PI);
-            if (angle < 0) angle += 360;
-
-            document.getElementById('res-dist').innerText = dist > 1000 ? (dist/1000).toFixed(2) + " km" : Math.round(dist) + " m";
-            document.getElementById('res-azimuth').innerText = `${Math.round(angle)}° (${Math.round(angle * 17.7777).toString().padStart(4, '0')} MIL)`;
-        }
-
-        /* --- System Initialization --- */
-        async function initSystem() {
-            document.getElementById('start-screen').style.display = 'none';
-            
-            // Compass Permission
-            if (window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission === 'function') {
-                const response = await DeviceOrientationEvent.requestPermission();
-                if (response === 'granted') {
-                    window.addEventListener('deviceorientation', (e) => {
-                        const h = e.webkitCompassHeading || (e.absolute ? 360 - e.alpha : null);
-                        updateHeading(h);
-                    }, true);
-                }
-            } else {
-                window.addEventListener('deviceorientationabsolute', (e) => updateHeading(360 - e.alpha), true);
-            }
-
-            // Map Init
-            map = L.map('map', { zoomControl: false, attributionControl: false });
-            L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg', { maxZoom: 18 }).addTo(map);
-
-            const arrowIcon = L.divIcon({ className: 'd-marker', html: '<div id="self-arrow" class="direction-marker"></div>', iconSize: [20, 20], iconAnchor: [10, 10] });
-            selfMarker = L.marker([0,0], { icon: arrowIcon }).addTo(map);
-
-            // Restore Data
-            restorePlots();
-
-            // P2P Trigger Menu
-            const menuExt = document.getElementById('menu-ext-area');
-            const p2pEntry = document.createElement('div');
-            p2pEntry.className = 'custom-menu-item';
-            p2pEntry.innerHTML = '＞ P2P NAV CALCULATOR';
-            p2pEntry.onclick = () => {
-                const options = savedPlots.map((p, i) => `<option value="${i}">${p.name}</option>`).join('');
-                document.getElementById('p2p-from').innerHTML = options;
-                document.getElementById('p2p-to').innerHTML = options;
-                document.getElementById('p2p-calc-panel').style.display = 'flex';
-                toggleMenu();
-            };
-            menuExt.appendChild(p2pEntry);
-
-            // Map Events
-            map.on('move', () => {
-                const center = map.getCenter();
-                const cPos = [center.lat, center.lng];
-                const mCode = mgrs.forward([center.lng, center.lat]);
-                document.getElementById('center-mgrs').innerText = mCode;
-                
-                if(selfPos) {
-                    const dist = L.latLng(selfPos).distanceTo(center);
-                    document.getElementById('range-val').innerText = `${Math.round(dist)} m`;
-                    document.getElementById('bearing-val').innerText = `${getMilBearing(selfPos, cPos)} MIL`;
-                }
-
-                document.getElementById('center-alt').innerText = "...";
-                clearTimeout(altTimeout);
-                altTimeout = setTimeout(() => fetchElevation(center.lat, center.lng, 'center-alt'), 600);
-            });
-
-            // Geolocation
-            navigator.geolocation.watchPosition((pos) => {
-                const lat = pos.coords.latitude, lon = pos.coords.longitude;
-                selfPos = [lat, lon];
-                const mCode = mgrs.forward([lon, lat]);
-                
-                document.getElementById('self-mgrs-c').innerText = mCode;
-                document.getElementById('self-mgrs-m').innerText = mCode;
-                
-                fetchElevation(lat, lon, 'self-alt');
-                
-                if (!window.initialSet) { map.setView(selfPos, 17); window.initialSet = true; }
-                selfMarker.setLatLng(selfPos);
-                currentDeclination = - ( (lat - 37) * 0.2 + (lon - 135) * 0.1 + 7.5 );
-            }, (err) => console.error("GPS Error:", err), { enableHighAccuracy: true });
-        }
-
-        /* UI Bindings */
-        document.getElementById('plot-btn').onclick = () => {
-            const name = prompt("IDENTIFIER:", "PT-" + (savedPlots.length + 1));
-            if (!name) return;
-            const center = map.getCenter();
-            const mCode = mgrs.forward([center.lng, center.lat]);
-            saveAndPlot(center.lat, center.lng, mCode, name);
-        };
-        document.getElementById('input-btn').onclick = () => document.getElementById('input-panel').style.display = 'flex';
-        document.getElementById('list-btn').onclick = () => {
-            const container = document.getElementById('plot-list-content');
-            container.innerHTML = savedPlots.map((p, i) => `
-                <div style="border-bottom:1px solid #002200; padding:10px 0; display:flex; justify-content:space-between; align-items:center;">
-                    <div style="font-size:11px;"><b>${p.name}</b> (${p.dist})<br><span style="color:#888;">${p.mgrs}</span></div>
-                    <button onclick="deletePlot(${i})" style="background:none; border:1px solid #440000; color:#ff0000; cursor:pointer; padding:5px;">DEL</button>
-                </div>
-            `).join('');
-            document.getElementById('plot-list-panel').style.display = 'flex';
-        };
-        window.deletePlot = (i) => {
-            savedPlots.splice(i, 1);
-            localStorage.setItem('tactical_plots', JSON.stringify(savedPlots));
-            restorePlots();
-            document.getElementById('list-btn').onclick(); // Refresh list
-        };
-        document.getElementById('p2p-from').onchange = calculateP2P;
-        document.getElementById('p2p-to').onchange = calculateP2P;
-
-    </script>
-</body>
-</html>
+        <span class="label">現在地 MGRS</span><span id="self-mgrs-c" class="val">
